@@ -37,11 +37,17 @@ jobs:
           $ver = (Get-Content package.json | ConvertFrom-Json).version
           echo "version=$ver" >> $env:GITHUB_OUTPUT
 
+      - name: Collect installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .build/installer
+          Copy-Item .build/release/*/*.exe .build/installer/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: atlas-windows-x64
-          path: .build/release/*/*.exe
+          path: .build/installer/*.exe
           if-no-files-found: error
 
     outputs:
@@ -89,4 +95,4 @@ jobs:
           tag_name: v${{ needs.build-windows.outputs.version }}
           draft: true
           generate_release_notes: true
-          files: dist/*.exe
+          files: dist/**/*.exe

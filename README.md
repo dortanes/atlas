@@ -72,37 +72,29 @@ Full control over the AI's behavior — modify system, action, and safety prompt
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
-> **Prerequisites:** [Node.js](https://nodejs.org/) ≥ 20 · [Yarn](https://yarnpkg.com/) ≥ 1.22
+### Download & Install
 
-### 1. Clone & Install
+1. Go to [**Releases**](https://github.com/dortanes/atlas/releases) and download the latest installer for Windows
+2. Run the installer — Atlas will appear in your system tray
+3. Get a **Gemini API key**: go to [Google AI Studio](https://aistudio.google.com/apikey) → sign in → **Create API Key** → copy it
+4. Click the **Atlas tray icon** → **Settings** → **LLM** tab → paste your API key
+5. *(Optional)* For voice output: get an [ElevenLabs](https://elevenlabs.io/) API key → **TTS** tab → paste key + voice ID
+6. Press `Ctrl+Space` and start giving Atlas tasks 🎉
+
+### Build from Source
+
+> For contributors and developers who want to run Atlas from source.
 
 ```bash
 git clone https://github.com/dortanes/atlas.git
 cd atlas
 yarn install
-```
-
-### 2. Get an API Key
-
-Atlas needs a **Gemini API key** to think:
-
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey) → sign in → **Create API Key** → copy it
-2. *(Optional)* For voice output, grab an [ElevenLabs](https://elevenlabs.io/) API key
-
-### 3. Launch
-
-```bash
 yarn dev
 ```
 
-### 4. Configure
-
-1. Click the **Atlas tray icon** → **Settings**
-2. **LLM** tab → paste your Gemini API key
-3. *(Optional)* **TTS** tab → paste ElevenLabs key + voice ID
-4. Press `Ctrl+Space` and start giving Atlas tasks 🎉
+> **Requires:** [Node.js](https://nodejs.org/) ≥ 20 · [Yarn](https://yarnpkg.com/) ≥ 1.22
 
 ---
 
