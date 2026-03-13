@@ -1,0 +1,111 @@
+/* ── Island Base ── */
+
+.island {
+  width: 100%;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.island__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.island__icon {
+  font-family: 'Material Symbols Rounded';
+  font-size: 18px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+.island__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255 255 255 / 0.45);
+}
+
+.island__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.island__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255 255 255 / 0.9);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.island__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── ActionIsland ── */
+
+.island--action .island__icon {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}
+
+.island--action .island__title {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}
+
+.island__progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255 255 255 / 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.island__progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l)),
+    hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 15%)),
+    hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l))
+  );
+  background-size: 200% 100%;
+  animation: progress-shimmer 2.5s ease-in-out infinite;
+  transition: width 400ms var(--spring-smooth);
+  box-shadow: 0 0 8px hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.4);
+}
+
+.island__progress-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255 255 255 / 0.35);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.island__step-counter {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 15%));
+  letter-spacing: 0.03em;
+}

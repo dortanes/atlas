@@ -1,0 +1,125 @@
+import { z } from 'zod'
+import { observable } from '@trpc/server/observable'
+import { trpcRouter, publicProcedure } from '@electron/api/context'
+import { getConfig, saveConfig, type AppConfig } from '@electron/utils/config'
+import { mainEventBus } from '@electron/utils/eventBus'
+import { PromptLoader } from '@electron/services/intelligence/PromptLoader'
+
+const promptLoader = new PromptLoader()
+
+/**
+ * settings.router — config & prompt management.
+ *
+ * Config: read / write AppConfig (persisted to config.json).
+ * Prompts: list / read / save / reset .md prompt templates.
+ */
+
+const uiSchema = z.object({
+  alwaysOnTop: z.boolean().optional(),
+  positionSide: z.enum(['left', 'right', 'center']).optional(),
+  openDevTools: z.boolean().optional(),
+  logLevel: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+}).optional()
+
+const llmSchema = z.object({
+  provider: z.string().optional(),
+  baseURL: z.string().optional(),
+  apiKey: z.string().optional(),
+  textModel: z.string().optional(),
+  visionModel: z.string().optional(),
+  classifierModel: z.string().optional(),
+}).optional()
+
+const generationSchema = z.object({
+  chatTemperature: z.number().min(0).max(2).optional(),
+  chatTopP: z.number().min(0).max(1).optional(),
+  chatTopK: z.number().int().min(1).optional(),
+  chatMaxTokens: z.number().int().min(1).optional(),
+  visionTemperature: z.number().min(0).max(2).optional(),
+  visionMaxTokens: z.number().int().min(1).optional(),
+}).optional()
+
+const ttsSchema = z.object({
+  provider: z.string().optional(),
+  apiKey: z.string().optional(),
+  voiceId: z.string().optional(),
+  model: z.string().optional(),
+  enabled: z.boolean().optional(),
+}).optional()
+
+const agentSchema = z.object({
+  maxIterations: z.number().int().min(1).optional(),
+  maxConsecutiveFailures: z.number().int().min(1).optional(),
+  preActionDelay: z.number().int().min(0).optional(),
+  postActionDelay: z.number().int().min(0).optional(),
+  maxContextMessages: z.number().int().min(1).optional(),
+  commandTimeout: z.number().int().min(1000).optional(),
+  screenshotMaxWidth: z.number().int().min(640).optional(),
+  screenshotQuality: z.number().int().min(1).max(100).optional(),
+}).optional()
+
+export const settingsRouter = trpcRouter({
+  /** Get full current config */
+  getConfig: publicProcedure.query((): AppConfig => {
+    return getConfig()
+  }),
+
+  /** Save partial config updates → disk + notify subscribers */
+  saveConfig: publicProcedure
+    .input(z.object({
+      ui: uiSchema,
+      llm: llmSchema,
+      generation: generationSchema,
+      tts: ttsSchema,
+      agent: agentSchema,
+      hotkey: z.string().optional(),
+      activePersonaId: z.string().optional(),
+    }))
+    .mutation(({ input }) => {
+      saveConfig(input)
+      const updated = getConfig()
+      mainEventBus.emit('config:changed', updated)
+      return updated
+    }),
+
+  /** Subscribe to config changes */
+  onConfigChange: publicProcedure.subscription(() => {
+    return observable<AppConfig>((emit) => {
+      const handler = (config: AppConfig) => emit.next(config)
+      mainEventBus.on('config:changed', handler)
+      return () => {
+        mainEventBus.removeListener('config:changed', handler)
+      }
+    })
+  }),
+
+  /** List available prompt names */
+  listPrompts: publicProcedure
+    .input(z.object({ personaId: z.string().optional() }).optional())
+    .query(({ input }): string[] => {
+      return promptLoader.list(input?.personaId)
+    }),
+
+  /** Get prompt content by name */
+  getPrompt: publicProcedure
+    .input(z.object({ name: z.string(), personaId: z.string().optional() }))
+    .query(({ input }): string => {
+      return promptLoader.load(input.name, undefined, input.personaId)
+    }),
+
+  /** Save prompt content */
+  savePrompt: publicProcedure
+    .input(z.object({ name: z.string(), content: z.string(), personaId: z.string().optional() }))
+    .mutation(({ input }) => {
+      promptLoader.save(input.name, input.content, input.personaId)
+      return true
+    }),
+
+  /** Reset prompt to bundled default */
+  resetPrompt: publicProcedure
+    .input(z.object({ name: z.string(), personaId: z.string().optional() }))
+    .mutation(({ input }) => {
+      promptLoader.reset(input.name, input.personaId)
+      return promptLoader.load(input.name, undefined, input.personaId)
+    }),
+})

@@ -1,0 +1,164 @@
+/* ═══════════════════════════════════════════════
+   Atlas — Animation System
+   ═══════════════════════════════════════════════ */
+
+/* ── Island: Float in (staggered) ── */
+@keyframes float-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Island: Float out ── */
+@keyframes float-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+/* ── Slide up (InputBar) ── */
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+/* ── Orb: Bloom in ── */
+@keyframes orb-bloom-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+    filter: blur(12px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+}
+
+/* ── Orb: Shrink out ── */
+@keyframes orb-bloom-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+    filter: blur(8px);
+  }
+}
+
+/* ── Progress bar shimmer ── */
+@keyframes progress-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ── Fade in ── */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ── Utility classes ── */
+.animate-float-in {
+  animation: float-in 450ms var(--spring-bounce) backwards;
+}
+
+/* Staggered delays for island entrance */
+.animate-float-in:nth-child(1) { animation-delay: 0ms; }
+.animate-float-in:nth-child(2) { animation-delay: 80ms; }
+.animate-float-in:nth-child(3) { animation-delay: 160ms; }
+.animate-float-in:nth-child(4) { animation-delay: 240ms; }
+.animate-float-in:nth-child(5) { animation-delay: 320ms; }
+
+.animate-float-out {
+  animation: float-out 300ms ease both;
+}
+
+/* Smooth collapse: fades out + shrinks height so siblings slide in */
+.animate-island-dismiss {
+  overflow: hidden;
+  animation: island-dismiss 400ms ease forwards;
+}
+
+@keyframes island-dismiss {
+  0% {
+    opacity: 1;
+    max-height: 200px;
+    margin-bottom: 0;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: -12px; /* absorb the gap */
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 350ms var(--spring-bounce) both;
+}
+
+.animate-slide-down {
+  animation: slide-down 250ms ease both;
+}
+
+.animate-fade-in {
+  animation: fade-in 300ms ease both;
+}
+
+.animate-orb-in {
+  animation: orb-bloom-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-orb-out {
+  animation: orb-bloom-out 400ms ease both;
+}

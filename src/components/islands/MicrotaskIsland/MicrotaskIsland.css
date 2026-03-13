@@ -1,0 +1,77 @@
+/* ── MicrotaskIsland ── */
+
+.island--microtask .island__icon {
+  color: rgba(255 255 255 / 0.5);
+}
+
+.microtask__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.microtask__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: rgba(255 255 255 / 0.55);
+  transition: color 200ms ease;
+}
+
+.microtask__indicator {
+  font-family: 'Material Symbols Rounded';
+  font-size: 16px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+.microtask__text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status variants */
+.microtask--done {
+  color: rgba(255 255 255 / 0.35);
+}
+
+.microtask--done .microtask__indicator {
+  color: var(--color-success);
+}
+
+.microtask--done .microtask__text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255 255 255 / 0.15);
+}
+
+.microtask--active {
+  color: rgba(255 255 255 / 0.9);
+}
+
+.microtask--active .microtask__indicator {
+  color: var(--color-accent);
+}
+
+.microtask--queued {
+  color: rgba(255 255 255 / 0.4);
+}
+
+.microtask--failed {
+  color: rgba(255 255 255 / 0.35);
+}
+
+.microtask--failed .microtask__indicator {
+  color: var(--color-danger);
+}

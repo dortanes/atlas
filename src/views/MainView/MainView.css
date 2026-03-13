@@ -1,0 +1,106 @@
+/* ── Main View Layout ── */
+
+.main-view {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 32px;
+  box-sizing: border-box;
+  background: transparent;
+  /* Click-through: transparent areas pass clicks to desktop */
+  pointer-events: none;
+}
+
+/* Position modifiers */
+.main-view--left {
+  justify-content: flex-start;
+}
+
+.main-view--center {
+  justify-content: center;
+}
+
+.main-view--right {
+  justify-content: flex-end;
+}
+
+.main-view__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: calc(320px + 48px);
+  max-height: 100%;
+  overflow: clip;
+  /* Padding > shadow spread so shadows aren't clipped */
+  padding: 24px;
+  pointer-events: none;
+  cursor: default;
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.main-view__stack--hidden {
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none !important;
+}
+
+.main-view__islands {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.main-view__agent-context {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  /* Grow to fill space between islands and orb */
+  flex: 1 1 0;
+  min-height: 0;
+  /* Visual separation from notification islands above */
+  padding-top: 40px;
+  /* Push content to bottom (near orb) */
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.main-view__orb-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 0;
+  flex-shrink: 0;
+  min-width: 180px;
+  min-height: 180px;
+  pointer-events: auto;
+}
+
+.main-view__state-label {
+  margin-top: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(255 255 255 / 0.35);
+  font-weight: 500;
+}
+
+.main-view__input-area {
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: auto;
+  max-height: 80px;
+  transition: max-height 300ms ease;
+}
+
+.main-view__input-area--collapsed {
+  max-height: 0;
+  pointer-events: none;
+}

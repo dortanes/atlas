@@ -1,0 +1,56 @@
+/* ── Input Bar ── */
+
+.input-bar {
+  width: 100%;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.input-bar__text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.input-bar__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 10px 12px;
+  border-radius: 9999px;
+}
+
+.input-bar__input:focus {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.input-bar__submit-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.3);
+  color: rgba(255 255 255 / 0.8);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms var(--spring-smooth);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.input-bar__submit-btn:hover {
+  background: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.5);
+  transform: scale(1.08);
+}
+
+.input-bar__submit-btn:active {
+  transform: scale(0.95);
+}

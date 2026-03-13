@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@api/*": ["electron/main/api/*"],
+      "@/*": ["src/*"],
+      "@electron/*": ["electron/main/*"]
+    }
+  },
+  "include": ["src", "electron/main/api"],
+  "references": [
+    { "path": "./tsconfig.node.json" }
+  ]
+}

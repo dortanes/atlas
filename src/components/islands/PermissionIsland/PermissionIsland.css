@@ -1,0 +1,9 @@
+/* ── PermissionIsland ── */
+
+.island--permission .island__icon {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}
+
+.island__header--permission .island__title {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}

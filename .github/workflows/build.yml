@@ -1,0 +1,92 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & Package
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json | ConvertFrom-Json).version
+          echo "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-windows-x64
+          path: .build/release/*/*.exe
+          if-no-files-found: error
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ needs.build-windows.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download artifacts
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: atlas-windows-x64
+          path: dist
+
+      - name: Create tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.build-windows.outputs.version }}"
+          git push origin "v${{ needs.build-windows.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build-windows.outputs.version }}
+          draft: true
+          generate_release_notes: true
+          files: dist/*.exe

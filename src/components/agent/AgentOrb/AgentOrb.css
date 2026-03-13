@@ -1,0 +1,237 @@
+/* ═══════════════════════════════════════════════
+   Agent Orb — Animated SVG Blob Cluster
+   ═══════════════════════════════════════════════ */
+
+/* ── Container ── */
+.orb {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* State palette — defaults to idle, uses OS accent color */
+  --orb-bg-0: hsl(var(--glass-accent-h) calc(var(--glass-accent-s) * 0.3) 8%);
+  --orb-blob-1: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+  --orb-blob-2: hsl(calc(var(--glass-accent-h) + 20) calc(var(--glass-accent-s) * 0.7) var(--glass-accent-l));
+  --orb-blob-3: hsl(calc(var(--glass-accent-h) - 30) calc(var(--glass-accent-s) * 0.8) calc(var(--glass-accent-l) + 30%));
+  --orb-blob-4: hsl(var(--glass-accent-h) calc(var(--glass-accent-s) * 0.2) 5%);
+  --orb-speed: 1;
+}
+
+/* ── Background Glow ── */
+.orb__glow {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  background: var(--orb-bg-0);
+  border-radius: 50%;
+  filter: blur(3rem);
+  opacity: 0.8;
+  transition: background 800ms ease, opacity 800ms ease;
+}
+
+/* ── SVG Canvas ── */
+.orb__svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* ── Blob Base ── */
+.orb__blob {
+  animation: orb-blob-rotate 25s infinite alternate ease-in-out;
+  transform-origin: 50% 50%;
+  opacity: 0.7;
+}
+
+.orb__blob path {
+  animation: orb-morph-1 5s infinite alternate cubic-bezier(0.45, 0.2, 0.55, 0.8);
+  transform-origin: 50% 50%;
+  transform: scale(0.8);
+  transition: fill 800ms ease;
+}
+
+/* Alt blobs — reversed direction, lower opacity */
+.orb__blob--alt {
+  animation-direction: alternate-reverse;
+  opacity: 0.3;
+}
+
+/* ── Blob 1 ── */
+.orb__blob-1 path {
+  fill: var(--orb-blob-1);
+  filter: blur(1rem);
+}
+
+/* ── Blob 2 ── */
+.orb__blob-2 {
+  animation-duration: 18s;
+  animation-direction: alternate-reverse;
+}
+
+.orb__blob-2.orb__blob--alt {
+  animation-direction: alternate;
+}
+
+.orb__blob-2 path {
+  fill: var(--orb-blob-2);
+  animation-name: orb-morph-2;
+  animation-duration: 7s;
+  filter: blur(0.75rem);
+  transform: scale(0.78);
+}
+
+/* ── Blob 3 ── */
+.orb__blob-3 {
+  animation-duration: 23s;
+}
+
+.orb__blob-3 path {
+  fill: var(--orb-blob-3);
+  animation-name: orb-morph-3;
+  animation-duration: 6s;
+  filter: blur(0.5rem);
+  transform: scale(0.76);
+}
+
+/* ── Blob 4 (deep glow) ── */
+.orb__blob-4 {
+  animation-duration: 31s;
+  animation-direction: alternate-reverse;
+  opacity: 0.9;
+}
+
+.orb__blob-4.orb__blob--alt {
+  animation-direction: alternate;
+  opacity: 0.8;
+}
+
+.orb__blob-4 path {
+  fill: var(--orb-blob-4);
+  animation-name: orb-morph-4;
+  animation-duration: 10s;
+  filter: blur(10rem);
+  transform: scale(0.5);
+}
+
+/* ═══════════════════════════════════════════════
+   State Palettes — accent-aware
+   ═══════════════════════════════════════════════ */
+
+.orb--idle {
+  --orb-bg-0: hsl(var(--glass-accent-h) calc(var(--glass-accent-s) * 0.3) 8%);
+  --orb-blob-1: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+  --orb-blob-2: hsl(calc(var(--glass-accent-h) + 20) calc(var(--glass-accent-s) * 0.7) var(--glass-accent-l));
+  --orb-blob-3: hsl(calc(var(--glass-accent-h) - 30) calc(var(--glass-accent-s) * 0.8) calc(var(--glass-accent-l) + 30%));
+  --orb-blob-4: hsl(var(--glass-accent-h) calc(var(--glass-accent-s) * 0.2) 5%);
+  --orb-speed: 1;
+}
+
+.orb--listening {
+  --orb-bg-0: hsl(var(--glass-accent-h) calc(var(--glass-accent-s) * 0.4) 12%);
+  --orb-blob-1: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 30%));
+  --orb-blob-2: hsl(calc(var(--glass-accent-h) + 15) var(--glass-accent-s) calc(var(--glass-accent-l) + 15%));
+  --orb-blob-3: hsl(calc(var(--glass-accent-h) - 20) calc(var(--glass-accent-s) * 0.9) calc(var(--glass-accent-l) + 35%));
+  --orb-blob-4: rgba(255, 255, 255, 0.15);
+  --orb-speed: 0.7;
+}
+
+.orb--processing {
+  --orb-bg-0: hsl(calc(var(--glass-accent-h) + 30) calc(var(--glass-accent-s) * 0.6) 14%);
+  --orb-blob-1: hsl(calc(var(--glass-accent-h) + 30) var(--glass-accent-s) calc(var(--glass-accent-l) + 25%));
+  --orb-blob-2: hsl(calc(var(--glass-accent-h) + 50) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+  --orb-blob-3: hsl(calc(var(--glass-accent-h) + 10) calc(var(--glass-accent-s) * 0.9) calc(var(--glass-accent-l) + 35%));
+  --orb-blob-4: rgba(255, 255, 255, 0.12);
+  --orb-speed: 0.5;
+}
+
+/* Processing — pulsing glow + scale oscillation */
+.orb--processing .orb__glow {
+  animation: orb-processing-glow 1.8s ease-in-out infinite;
+}
+
+.orb--processing .orb__svg {
+  animation: orb-processing-breathe 2.4s ease-in-out infinite;
+}
+
+.orb--acting {
+  --orb-bg-0: hsl(calc(var(--glass-accent-h) + 90) calc(var(--glass-accent-s) * 0.3) 10%);
+  --orb-blob-1: hsl(calc(var(--glass-accent-h) + 90) calc(var(--glass-accent-s) * 0.6) calc(var(--glass-accent-l) + 25%));
+  --orb-blob-2: hsl(calc(var(--glass-accent-h) + 80) calc(var(--glass-accent-s) * 0.8) calc(var(--glass-accent-l) + 15%));
+  --orb-blob-3: hsl(calc(var(--glass-accent-h) + 100) calc(var(--glass-accent-s) * 0.5) calc(var(--glass-accent-l) + 30%));
+  --orb-blob-4: hsl(calc(var(--glass-accent-h) + 95) calc(var(--glass-accent-s) * 0.3) calc(var(--glass-accent-l) + 20%));
+  --orb-speed: 0.8;
+}
+
+.orb--warning {
+  --orb-bg-0: hsl(0 50% 10%);
+  --orb-blob-1: hsl(0 90% 55%);
+  --orb-blob-2: hsl(15 80% 60%);
+  --orb-blob-3: hsl(40 80% 70%);
+  --orb-blob-4: hsl(30 50% 90%);
+  --orb-speed: 0.4;
+}
+
+/* ── Warning pulse on glow ── */
+.orb--warning .orb__glow {
+  animation: orb-glow-pulse 1.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   Keyframes — Blob Shape Morphing
+   ═══════════════════════════════════════════════ */
+
+@keyframes orb-morph-1 {
+  0%   { d: path("M 100 600 q 0 -500, 500 -500 t 500 500 t -500 500 T 100 600 z"); }
+  30%  { d: path("M 100 600 q -50 -400, 500 -500 t 450 550 t -500 500 T 100 600 z"); }
+  70%  { d: path("M 100 600 q 0 -400, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+  100% { d: path("M 150 600 q 0 -600, 500 -500 t 500 550 t -500 500 T 150 600 z"); }
+}
+
+@keyframes orb-morph-2 {
+  0%   { d: path("M 100 600 q 0 -400, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+  40%  { d: path("M 150 600 q 0 -600, 500 -500 t 500 550 t -500 500 T 150 600 z"); }
+  80%  { d: path("M 100 600 q -50 -400, 500 -500 t 450 550 t -500 500 T 100 600 z"); }
+  100% { d: path("M 100 600 q 100 -600, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+}
+
+@keyframes orb-morph-3 {
+  0%   { d: path("M 100 600 q -50 -400, 500 -500 t 450 550 t -500 500 T 100 600 z"); }
+  35%  { d: path("M 150 600 q 0 -600, 500 -500 t 500 550 t -500 500 T 150 600 z"); }
+  75%  { d: path("M 100 600 q 100 -600, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+  100% { d: path("M 100 600 q 0 -400, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+}
+
+@keyframes orb-morph-4 {
+  0%   { d: path("M 150 600 q 0 -600, 500 -500 t 500 550 t -500 500 T 150 600 z"); }
+  30%  { d: path("M 100 600 q 100 -600, 500 -500 t 400 500 t -500 500 T 100 600 z"); }
+  70%  { d: path("M 100 600 q -50 -400, 500 -500 t 450 550 t -500 500 T 100 600 z"); }
+  100% { d: path("M 150 600 q 0 -600, 500 -500 t 500 550 t -500 500 T 150 600 z"); }
+}
+
+/* ── Blob Group Rotation ── */
+@keyframes orb-blob-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Warning Glow Pulse ── */
+@keyframes orb-glow-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+/* ── Processing Glow Pulse ── */
+@keyframes orb-processing-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1);    filter: blur(3rem); }
+  50%      { opacity: 1;   transform: scale(1.25); filter: blur(4rem); }
+}
+
+/* ── Processing SVG Breathe ── */
+@keyframes orb-processing-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}

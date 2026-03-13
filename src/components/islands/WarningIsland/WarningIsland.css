@@ -1,0 +1,32 @@
+/* ── WarningIsland ── */
+
+.island--warning .island__icon {
+  color: hsl(35 90% 55%);
+}
+
+.island__header--warning .island__title {
+  color: hsl(35 90% 55%);
+}
+
+/* ── Dismiss button ── */
+.island__dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  color: rgba(255 255 255 / 0.3);
+  transition: color 200ms ease, background 200ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Material Symbols Rounded', sans-serif;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.island__dismiss:hover {
+  color: rgba(255 255 255 / 0.7);
+  background: rgba(255 255 255 / 0.06);
+}

@@ -1,0 +1,27 @@
+/* ── Glass Input ── */
+
+.glass-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--color-glass-border);
+  border-radius: 10px;
+  background: rgba(255 255 255 / 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255 255 255 / 0.9);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: all 200ms var(--spring-smooth);
+  box-sizing: border-box;
+}
+
+.glass-input::placeholder {
+  color: rgba(255 255 255 / 0.3);
+}
+
+.glass-input:focus {
+  border-color: oklch(0.7 0.18 240 / 0.4);
+  box-shadow: 0 0 16px oklch(0.7 0.18 240 / 0.1);
+  background: rgba(255 255 255 / 0.06);
+}

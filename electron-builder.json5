@@ -1,0 +1,53 @@
+// @see https://www.electron.build/configuration/configuration
+{
+  $schema: "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  icon: "build/icon.ico",
+  artifactName: "atlas-${version}.${ext}",
+  appId: "com.dortanes.atlas",
+  executableName: "atlas",
+  productName: "Atlas",
+  asar: true,
+  extraResources: [
+    {
+      from: "build/tray.png",
+      to: "tray.png",
+    },
+  ],
+  publish: null,
+  directories: {
+    output: ".build/release/${version}",
+  },
+  files: [
+    ".build/dist/**/*",
+    ".build/dist-electron/**/*",
+    "package.json",
+    "node_modules/**/*",
+    "!node_modules/**/{README.md,README,readme.md,readme}",
+    "!node_modules/**/test/**",
+    "!node_modules/**/*.d.ts",
+  ],
+  mac: {
+    category: "public.app-category.productivity",
+    target: ["dmg"],
+  },
+  win: {
+    target: [
+      {
+        target: "nsis",
+        arch: ["x64"],
+      },
+    ],
+  },
+  nsis: {
+    oneClick: true,
+    perMachine: false,
+    shortcutName: "Atlas",
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    deleteAppDataOnUninstall: true,
+  },
+  linux: {
+    target: ["AppImage"],
+    category: "Network",
+  },
+}

@@ -1,0 +1,69 @@
+/* ── Glass Button ── */
+
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: 1px solid rgba(255 255 255 / 0.08);
+  border-radius: 10px;
+  background: rgba(255 255 255 / 0.06);
+  color: rgba(255 255 255 / 0.85);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: all 200ms var(--spring-smooth);
+  outline: none;
+}
+
+.glass-btn:hover {
+  background: rgba(255 255 255 / 0.1);
+  border-color: rgba(255 255 255 / 0.12);
+  transform: translateY(-1px);
+}
+
+.glass-btn:active {
+  transform: translateY(0);
+  background: rgba(255 255 255 / 0.12);
+}
+
+.glass-btn--primary {
+  background: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.2);
+  border-color: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.25);
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 30%));
+}
+
+.glass-btn--primary:hover {
+  background: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.3);
+  border-color: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.4);
+}
+
+.glass-btn--danger {
+  background: hsl(0 60% 45% / 0.15);
+  border-color: hsl(0 60% 50% / 0.2);
+  color: hsl(0 80% 70%);
+}
+
+.glass-btn--danger:hover {
+  background: hsl(0 60% 45% / 0.25);
+  border-color: hsl(0 60% 50% / 0.35);
+}
+
+.glass-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.glass-btn--ghost:hover {
+  background: rgba(255 255 255 / 0.06);
+  border-color: rgba(255 255 255 / 0.08);
+}
+
+.glass-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}

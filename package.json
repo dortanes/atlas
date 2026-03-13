@@ -1,0 +1,84 @@
+{
+  "name": "atlas",
+  "description": "An AI-powered computer-use agent built with Electron.",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "main": ".build/dist-electron/main/index.js",
+  "author": {
+    "name": "dortanes",
+    "url": "https://github.com/dortanes"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "yarn": ">=1.22.22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dortanes/atlas.git"
+  },
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "debug": {
+    "env": {
+      "VITE_DEV_SERVER_URL": "http://127.0.0.1:3344/"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run lint && vite build && electron-builder",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .vue,.js,.jsx,.ts,.tsx --fix"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.38.1",
+    "@google/genai": "^1.44.0",
+    "@nut-tree-fork/nut-js": "^4.2.6",
+    "@tailwindcss/vite": "^4.1.12",
+    "@trpc/client": "10.45.0",
+    "@trpc/server": "10.45.0",
+    "@vitejs/plugin-vue-jsx": "^5.0.1",
+    "cheerio": "^1.2.0",
+    "daisyui": "5",
+    "electron-trpc": "0.7.1",
+    "openai": "^6.27.0",
+    "screenshot-desktop": "^1.15.3",
+    "tailwindcss": "^4.1.12",
+    "uiohook-napi": "^1.5.4",
+    "zod": "^4.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@types/screenshot-desktop": "^1.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.40.0",
+    "@typescript-eslint/parser": "^8.40.0",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vue/eslint-config-typescript": "^14.6.0",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.4.0",
+    "globals": "^16.3.0",
+    "typescript": "^5.4.2",
+    "vite": "^5.1.5",
+    "vite-plugin-electron": "^0.28.4",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vue": "^3.4.21",
+    "vue-eslint-parser": "^10.2.0",
+    "vue-tsc": "^2.0.6"
+  },
+  "packageManager": "yarn@1.22.22",
+  "volta": {
+    "node": "20.19.4",
+    "yarn": "1.22.22"
+  }
+}

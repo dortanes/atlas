@@ -1,0 +1,141 @@
+/* ── ResponseIsland ── */
+
+/* ── Island entrance ──
+ * Uses `backwards` fill mode so .glass:hover works after animation.
+ */
+.island--response {
+  animation: response-enter 500ms var(--spring-smooth) backwards;
+  /* Flex child — size by content, shrink if space is tight */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 1 auto;
+  max-height: 50vh;
+}
+
+@keyframes response-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── Response mode — accent-colored header ── */
+.island--response:not(.island--thoughts) .island__icon {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}
+
+.island--response:not(.island--thoughts) .island__title {
+  color: hsl(var(--glass-accent-h) var(--glass-accent-s) calc(var(--glass-accent-l) + 20%));
+}
+
+/* ── Thoughts mode — dimmed, italic ── */
+.island--thoughts .island__icon {
+  color: rgba(255 255 255 / 0.35);
+}
+
+.island__header--thoughts .island__title {
+  color: rgba(255 255 255 / 0.35);
+  font-style: italic;
+}
+
+.response__scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+
+  /* Hide native scrollbar */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.response__scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ── Text container ── */
+.response__text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.response__text--thoughts {
+  color: rgba(255 255 255 / 0.6);
+  font-style: italic;
+}
+
+/* ── Chunk / Word animation (Gemini-style) ── */
+.response__chunk {
+  display: inline;
+}
+
+.response__word {
+  display: inline;
+}
+
+.response__word--reveal {
+  animation: word-reveal 500ms ease both;
+  animation-delay: var(--word-delay, 0ms);
+}
+
+@keyframes word-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  60% {
+    opacity: 0.8;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ── Streaming pulse on the island border ── */
+.island--streaming {
+  animation:
+    response-enter 500ms var(--spring-smooth) backwards,
+    streaming-pulse 2.5s ease-in-out infinite 500ms;
+}
+
+@keyframes streaming-pulse {
+  0%, 100% { border-color: rgba(255 255 255 / 0.08); }
+  50% { border-color: hsl(var(--glass-accent-h) var(--glass-accent-s) var(--glass-accent-l) / 0.3); }
+}
+
+/* ── Dismiss button ── */
+.response__dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  color: rgba(255 255 255 / 0.3);
+  transition: color 200ms ease, background 200ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.response__dismiss:hover {
+  color: rgba(255 255 255 / 0.7);
+  background: rgba(255 255 255 / 0.06);
+}
+
+.response__dismiss .island__icon {
+  font-size: 16px;
+  color: inherit;
+}

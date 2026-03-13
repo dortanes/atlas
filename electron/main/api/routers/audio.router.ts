@@ -1,0 +1,97 @@
+import { observable } from '@trpc/server/observable'
+import { z } from 'zod'
+import { trpcRouter, publicProcedure } from '@electron/api/context'
+import { mainEventBus } from '@electron/utils/eventBus'
+import { createLogger } from '@electron/utils/logger'
+
+const log = createLogger('audio.router')
+
+/**
+ * audio.router — audio/voice + TTS endpoints.
+ *
+ * STT stubs (Phase 7) + TTS controls (Phase 3.5).
+ */
+export const audioRouter = trpcRouter({
+
+  // ── STT (Phase 7 stubs) ──
+
+  /** Start listening for voice input */
+  startListening: publicProcedure.mutation(() => {
+    log.info('startListening called (stub)')
+    mainEventBus.emit('audio:listening', true)
+    return { ok: true }
+  }),
+
+  /** Stop listening for voice input */
+  stopListening: publicProcedure.mutation(() => {
+    log.info('stopListening called (stub)')
+    mainEventBus.emit('audio:listening', false)
+    return { ok: true }
+  }),
+
+  /** Subscribe to speech-to-text transcript chunks */
+  onTranscript: publicProcedure.subscription(() => {
+    return observable<{ text: string; isFinal: boolean }>((emit) => {
+      function onTranscript(payload: { text: string; isFinal: boolean }) {
+        emit.next(payload)
+      }
+
+      mainEventBus.on('audio:transcript', onTranscript)
+
+      return () => {
+        mainEventBus.off('audio:transcript', onTranscript)
+      }
+    })
+  }),
+
+  // ── TTS (Phase 3.5) ──
+
+  /** Trigger TTS to speak text */
+  speak: publicProcedure
+    .input(z.object({ text: z.string() }))
+    .mutation(({ input }) => {
+      log.info(`TTS speak: ${input.text.length} chars`)
+      mainEventBus.emit('tts:speak', { text: input.text })
+      return { ok: true }
+    }),
+
+  /** Stop current TTS playback */
+  stopSpeaking: publicProcedure.mutation(() => {
+    log.info('TTS stop')
+    mainEventBus.emit('tts:stop')
+    return { ok: true }
+  }),
+
+  /** Subscribe to TTS speaking status */
+  onTTSStatus: publicProcedure.subscription(() => {
+    return observable<{ speaking: boolean }>((emit) => {
+      function onStatus(payload: { speaking: boolean }) {
+        emit.next(payload)
+      }
+
+      mainEventBus.on('tts:status', onStatus)
+
+      return () => {
+        mainEventBus.off('tts:status', onStatus)
+      }
+    })
+  }),
+
+  /** Subscribe to TTS audio chunks (base64-encoded mp3) */
+  onTTSAudio: publicProcedure.subscription(() => {
+    return observable<{ data: string; done: boolean }>((emit) => {
+      function onAudio(payload: { chunk: Buffer; done: boolean }) {
+        emit.next({
+          data: payload.chunk.toString('base64'),
+          done: payload.done,
+        })
+      }
+
+      mainEventBus.on('tts:audio', onAudio)
+
+      return () => {
+        mainEventBus.off('tts:audio', onAudio)
+      }
+    })
+  }),
+})
