@@ -96,8 +96,17 @@ Enable per-request session logs to trace the full pipeline: intent classificatio
 2. Run the installer — Atlas will appear in your system tray
 3. Get a **Gemini API key**: go to [Google AI Studio](https://aistudio.google.com/apikey) → sign in → **Create API Key** → copy it
 4. Click the **Atlas tray icon** → **Settings** → **LLM** tab → paste your API key
-5. *(Optional)* For voice output: get an [ElevenLabs](https://elevenlabs.io/) API key → **TTS** tab → paste key + voice ID
-6. Press `Ctrl+Space` and start giving Atlas tasks 🎉
+5. Set the recommended models in the **LLM** tab:
+
+   | Setting | Free tier | Paid tier |
+   |---------|-----------|-----------|
+   | **Text model** | `gemini-3.1-flash-lite-preview` | `gemini-3.1-flash-lite-preview` |
+   | **Vision model** | `gemini-3.1-flash-lite-preview` | `gemini-3-flash-preview` |
+
+   > Vision model handles screen control & Computer Use. Paid tier model is more accurate but requires a billing-enabled API key.
+
+6. *(Optional)* For voice output: get an [ElevenLabs](https://elevenlabs.io/) API key → **TTS** tab → paste key + voice ID
+7. Press `Ctrl+Space` and start giving Atlas tasks 🎉
 
 ### Build from Source
 
