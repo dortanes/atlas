@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dortanes/atlas/releases"><img src="https://img.shields.io/badge/download-latest-7c3aed?style=for-the-badge&logo=windows&logoColor=white" alt="Download" /></a>&nbsp;
-  <a href="#-quick-start"><img src="https://img.shields.io/badge/get%20started-→-0ea5e9?style=for-the-badge" alt="Get Started" /></a>&nbsp;
+  <a href="https://github.com/dortanes/atlas/releases"><img src="https://img.shields.io/badge/download-v0.2.0-7c3aed?style=for-the-badge&logo=windows&logoColor=white" alt="Download" /></a>&nbsp;
+  <a href="#-getting-started"><img src="https://img.shields.io/badge/get%20started-→-0ea5e9?style=for-the-badge" alt="Get Started" /></a>&nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -21,14 +21,14 @@
   <img src="https://img.shields.io/badge/privacy--first-local%20only-blue?style=flat-square" alt="Privacy" />
 </p>
 
-<p align="center"><img src="example.gif" width="540" alt="Atlas Demo" /></p>
+<p align="center"><img src="docs/preview.png" width="300" alt="Atlas Demo" /></p>
 
 ---
 
-> **⚠️ Atlas is in active MVP development.**
+> **⚠️ Atlas is in active development (v0.2.0).**
 > 
-> - 🤖 **LLM support:** Gemini and OpenAI are fully supported. More providers coming soon.
-> - 🎯 **Screen control:** Currently uses vision models to predict click coordinates — accuracy varies. Native Computer Use API support is on the way.
+> - 🤖 **LLM support:** Gemini (including native [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use)) and OpenAI. More providers on the way.
+> - 🖥 **Screen control:** Gemini 3.x models use native [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use) for precise actions. Older models use vision-based coordinate prediction.
 > - 💻 **Platform:** Windows only for now. macOS & Linux support is planned.
 > - 🐛 **Found a bug?** We'd love to hear about it — [open an issue](https://github.com/dortanes/atlas/issues).
 
@@ -36,15 +36,17 @@
 
 ## What is Atlas?
 
-Atlas is an **AI-powered desktop agent** that works alongside you as a transparent overlay. Press `Ctrl+Space`, tell it what to do — and it figures out the rest: navigating apps, clicking buttons, typing text, searching the web, running commands.
+Atlas is an **AI-powered desktop agent** that works alongside you as a transparent overlay. Press `Ctrl+Space`, tell it what to do — and it figures out the rest: navigating apps, clicking buttons, typing text, searching the web, finding files, running commands.
 
 Think of it as a **copilot for your entire OS**.
 
 - 🖥 **Sees your screen** — captures what's on your display and understands the context
-- 🧠 **Thinks before it acts** — plans multi-step tasks, not just one-shot commands
+- 🧠 **Thinks before it acts** — plans multi-step tasks and shows progress in real time
 - 🖱 **Controls your computer** — mouse, keyboard, and terminal — all automated
 - 🔍 **Searches the web** — finds answers and brings them back, no tab-switching needed
+- 📂 **Finds your files** — searches local files and folders by name, right from chat
 - 🗣 **Speaks to you** — real-time voice responses with streaming TTS
+- 🔊 **Sound feedback** — distinct sounds for every state: activation, processing, task complete, warnings
 - 🛡 **Asks before doing anything risky** — built-in safety system with permission prompts
 
 ---
@@ -59,16 +61,30 @@ Context-aware floating panels that appear when relevant:
 - **Action Island** — shows the current task and progress
 - **Response Island** — streams Atlas's thoughts and replies word by word
 - **Permission Island** — asks for confirmation before risky operations
-- **Microtask Island** — your task queue, completed one by one
+- **Microtask Island** — your task queue with real-time step progress (queue new tasks while the agent is busy)
+- **Search Island** — web search results and local file search results
+- **Warning Island** — dismissable warnings for errors and quota issues
+
+### 🖥 Computer Use
+Atlas supports the native **Gemini [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use)** — when using compatible models (Gemini 3.x), it gets pixel-perfect screen control with built-in tool calls for clicking, typing, scrolling, and navigating. Older models fall back to vision-based coordinate prediction.
+
+### 🧩 Smart Task Planning
+Before executing complex commands, Atlas breaks them into high-level steps (2–5) and displays them in the Task Queue. You see planned steps before execution begins and watch progress as each step completes.
 
 ### 🎭 Personas
 Create multiple AI agents with unique personalities, knowledge, and voices. Each persona has its own memory and prompt settings — switch between them from the tray menu.
 
-### 🧩 Memory
-Atlas remembers your preferences and context across sessions. It learns facts about you from conversations and uses them to give better responses over time.
+### 🧠 Memory
+Atlas remembers your preferences and context across sessions. It learns facts about you from conversations and uses them to give better responses over time. Browse conversation history and view, edit, or delete learned facts in Settings.
 
 ### ✍️ Editable Prompts
 Full control over the AI's behavior — modify system, action, and safety prompts directly from the Settings UI. Reset to defaults anytime.
+
+### ⚙️ Customizable Layout
+Choose where Atlas appears on screen (left, right, or center) and configure your preferred activation hotkey — all from Settings.
+
+### 🔧 Debug Logging
+Enable per-request session logs to trace the full pipeline: intent classification → LLM calls → actions → response streaming — with precise timing for every stage.
 
 ---
 
@@ -103,15 +119,18 @@ yarn dev
 | Status | Feature |
 |:------:|---------|
 | ✅ | Transparent glassmorphism overlay with Orb + Island UI |
-| ✅ | LLM integration (Gemini) with multi-provider architecture |
-| ✅ | Screen vision + desktop automation |
+| ✅ | LLM integration (Gemini + OpenAI) with multi-provider architecture |
+| ✅ | Screen vision + desktop automation (robotjs) |
+| ✅ | Native Gemini [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use) |
+| ✅ | Smart task planning with step-by-step progress |
 | ✅ | Streaming TTS via ElevenLabs |
 | ✅ | Persona system with isolated memory & custom voices |
-| ✅ | Web search integration |
-| ✅ | Settings UI with prompt editor |
-| 🔜 | Native Gemini Computer Use API |
+| ✅ | Web search + local file search |
+| ✅ | Settings UI with prompt editor + debug logging |
+| ✅ | Intent classification (direct / action / chat) |
 | 🔜 | Voice input (wake word + STT) |
 | 🔜 | Action whitelist/blacklist & audit log |
+| 🔜 | Context caching (token optimization) |
 | 🔜 | Onboarding flow |
 | 🔜 | Auto-update |
 
