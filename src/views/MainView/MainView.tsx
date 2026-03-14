@@ -39,9 +39,9 @@ export default defineComponent({
     const { state: agentState, currentAction, sendCommand } = useAgent()
     const { permissions, respond: respondPermission } = usePermissions()
     const { warnings, dismiss: dismissWarning } = useWarnings()
-    const { tasks, setTasks } = useMicrotasks()
+    const { tasks, setTasks, progressPercent, progressLabel } = useMicrotasks()
     const { response, dismissing: responseDismissing, dismiss: dismissResponse } = useResponse()
-    const { searchData, dismissing: searchDismissing, dismiss: dismissSearch, clear: clearSearch } = useSearch()
+    const { searchData, dismissing: searchDismissing, dismiss: dismissSearch, clear: clearSearch, openFile, revealFile } = useSearch()
 
     /* ── UI Position (from config, reactive) ── */
     const positionSide = ref<'left' | 'right' | 'center'>('right')
@@ -210,6 +210,8 @@ export default defineComponent({
       warnings,
       tasks,
       setTasks,
+      progressPercent,
+      progressLabel,
       response,
       responseDismissing,
       dismissResponse,
@@ -227,6 +229,8 @@ export default defineComponent({
       warningDismissing,
       onWarningDismiss,
       positionSide,
+      openFile,
+      revealFile,
     }
   },
 
@@ -293,14 +297,23 @@ export default defineComponent({
             {this.searchData && (
               <div class={this.searchDismissing ? 'animate-island-dismiss' : ''}>
                 <SearchIsland
+                  type={this.searchData.type}
                   query={this.searchData.query}
                   results={this.searchData.results}
+                  fileResults={this.searchData.fileResults}
                   searching={this.searchData.searching}
                   onDismiss={this.dismissSearch}
+                  onOpenFile={(path: string) => this.openFile(path)}
+                  onRevealFile={(path: string) => this.revealFile(path)}
                 />
               </div>
             )}
-            <MicrotaskIsland tasks={this.tasks} onDismiss={() => this.setTasks([])} />
+            <MicrotaskIsland
+              tasks={this.tasks}
+              progressPercent={this.progressPercent}
+              progressLabel={this.progressLabel}
+              onDismiss={() => this.setTasks([])}
+            />
           </div>
 
           {/* Orb — reflects agent state; click toggles InputBar */}

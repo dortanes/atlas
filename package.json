@@ -2,7 +2,7 @@
   "name": "atlas",
   "description": "An AI-powered computer-use agent built with Electron.",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "main": ".build/dist-electron/main/index.js",
   "author": {
@@ -41,7 +41,7 @@
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.38.1",
     "@google/genai": "^1.44.0",
-    "@nut-tree-fork/nut-js": "^4.2.6",
+    "@hurdlegroup/robotjs": "^0.12.3",
     "@tailwindcss/vite": "^4.1.12",
     "@trpc/client": "10.45.0",
     "@trpc/server": "10.45.0",

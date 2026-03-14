@@ -1,30 +1,50 @@
 /**
- * KeyboardController — wraps nut.js keyboard API for the action loop.
+ * KeyboardController — wraps robotjs keyboard API for the action loop.
  *
  * Responsibilities:
- * - Text input via clipboard paste (avoids Windows Alt-key bugs)
+ * - Native typing via robotjs (for Computer Use loop — works with all UI elements)
  * - Hotkey combinations (e.g. Ctrl+C, Alt+Tab)
  * - Single key presses (e.g. Enter, Escape)
  *
- * Key name resolution uses {@link KEY_MAP} from `keyMap.ts` to convert
- * human-readable strings (from LLM output) to nut.js Key enums.
+ * Key name resolution uses {@link KEY_ALIASES} to normalize LLM output
+ * strings to robotjs key names.
  */
 
-import { keyboard, Key } from '@nut-tree-fork/nut-js'
+import robot from '@hurdlegroup/robotjs'
 import { clipboard } from 'electron'
 import { createLogger } from '@electron/utils/logger'
 import { sleep } from '@electron/utils/other'
-import { KEY_MAP } from './keyMap'
 
 const log = createLogger('KeyboardController')
 
+/**
+ * Aliases for LLM key names → robotjs key names.
+ * robotjs already accepts most standard names ('enter', 'shift', 'f1', etc.)
+ * so we only need aliases for common variations.
+ */
+const KEY_ALIASES: Record<string, string> = {
+  ctrl: 'control',
+  win: 'command',
+  super: 'command',
+  meta: 'command',
+  cmd: 'command',
+  esc: 'escape',
+  return: 'enter',
+  del: 'delete',
+  pgup: 'pageup',
+  pgdn: 'pagedown',
+  pgdown: 'pagedown',
+}
+
+/** Modifier keys that robotjs accepts as the modifier parameter */
+const MODIFIERS = new Set(['control', 'alt', 'shift', 'command'])
+
 export class KeyboardController {
   /**
-   * Type text by pasting from clipboard (reliable on Windows).
+   * Type text by pasting from clipboard (reliable for app text fields).
    *
-   * nut.js `keyboard.type()` triggers Alt-key menu accelerators on Windows,
-   * so we use clipboard + Ctrl+V workaround. The original clipboard content
-   * is preserved and restored after pasting.
+   * Used by ActionLoop. For native UI elements,
+   * use {@link typeNative} instead.
    *
    * @param text — text string to type into the focused window
    */
@@ -39,8 +59,7 @@ export class KeyboardController {
     await sleep(50)
 
     // Paste via Ctrl+V
-    await keyboard.pressKey(Key.LeftControl, Key.V)
-    await keyboard.releaseKey(Key.LeftControl, Key.V)
+    robot.keyTap('v', 'control')
     await sleep(100)
 
     // Restore original clipboard
@@ -48,16 +67,47 @@ export class KeyboardController {
   }
 
   /**
+   * Type text character-by-character using native key events.
+   *
+   * Works with ALL UI elements including Windows Start menu search,
+   * native dialogs, and other controls that don't support Ctrl+V.
+   * Used by Computer Use loop.
+   *
+   * @param text — text to type character-by-character
+   */
+  typeNative(text: string): void {
+    log.info(`typeNative("${text.slice(0, 50)}${text.length > 50 ? '...' : ''}")`)
+    // Use delayed typing to prevent characters from being garbled
+    // 6000 CPM ≈ 100 chars/sec ≈ 15ms per character
+    robot.setKeyboardDelay(15)
+    robot.typeStringDelayed(text, 6000)
+  }
+
+  /**
    * Press a hotkey combination (e.g. Ctrl+C, Alt+Tab).
    *
    * @param keys — key names: ["ctrl", "c"]
    */
-  async hotkey(...keys: string[]): Promise<void> {
+  hotkey(...keys: string[]): void {
     log.info(`hotkey(${keys.join('+')})`)
 
-    const nutKeys = keys.map((k) => this.resolveKey(k))
-    await keyboard.pressKey(...nutKeys)
-    await keyboard.releaseKey(...nutKeys)
+    const resolved = keys.map((k) => this.resolveKey(k))
+
+    // Separate modifiers from the main key
+    // robotjs API: keyTap(key, modifier | modifier[])
+    const modifiers = resolved.filter((k) => MODIFIERS.has(k))
+    const mainKeys = resolved.filter((k) => !MODIFIERS.has(k))
+
+    if (mainKeys.length > 0) {
+      // Tap each main key with all modifiers held
+      for (const key of mainKeys) {
+        robot.keyTap(key, modifiers.length > 0 ? modifiers : [])
+      }
+    } else if (modifiers.length > 0) {
+      // All keys are modifiers (e.g. just "Alt") — tap the last one
+      const last = modifiers.pop()!
+      robot.keyTap(last, modifiers.length > 0 ? modifiers : [])
+    }
   }
 
   /**
@@ -65,39 +115,24 @@ export class KeyboardController {
    *
    * @param key — key name (e.g. "enter", "escape", "f5")
    */
-  async keyPress(key: string): Promise<void> {
+  keyPress(key: string): void {
     log.info(`keyPress(${key})`)
-    const nutKey = this.resolveKey(key)
-    await keyboard.pressKey(nutKey)
-    await keyboard.releaseKey(nutKey)
+    const resolved = this.resolveKey(key)
+    robot.keyTap(resolved)
   }
 
   /**
-   * Resolve a human-readable key string to nut.js Key enum.
+   * Resolve a human-readable key string to a robotjs key name.
    *
    * Resolution order:
-   * 1. Check {@link KEY_MAP} for known aliases
-   * 2. Try single-character mapping (e.g. "a" → Key.A)
-   * 3. Throw an error if no mapping found
+   * 1. Normalize to lowercase
+   * 2. Check {@link KEY_ALIASES} for known aliases
+   * 3. Return as-is (robotjs accepts most standard key names)
    *
    * @param key — key name from LLM output
-   * @throws Error if the key cannot be mapped
    */
-  private resolveKey(key: string): Key {
+  private resolveKey(key: string): string {
     const normalized = key.toLowerCase().trim()
-
-    // Check direct mapping first
-    const mapped = KEY_MAP[normalized]
-    if (mapped !== undefined) return mapped
-
-    // Single character → try to map to Key.A, Key.B, etc.
-    if (normalized.length === 1) {
-      const upper = normalized.toUpperCase()
-      const keyEnum = Key[upper as keyof typeof Key]
-      if (keyEnum !== undefined) return keyEnum
-    }
-
-    log.error(`Unknown key: "${key}" — no mapping found`)
-    throw new Error(`Unknown key: "${key}". Cannot map to a keyboard key.`)
+    return KEY_ALIASES[normalized] ?? normalized
   }
 }

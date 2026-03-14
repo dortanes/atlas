@@ -37,10 +37,13 @@ import { parseAction } from './parseAction'
 import { streamFinalResponse } from './ResponseStreamer'
 import { AgentStateMachine } from './AgentState'
 import { AgentActionSchema } from './schemas'
+import { planSteps, createStepTasks, activateStep, markStep, emitSteps } from './TaskPlanner'
+import type { StepTask } from './TaskPlanner'
 import * as z from 'zod'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { AgentAction } from './types'
 import type { FactExtractor } from './FactExtractor'
+import type { SessionLogger } from '@electron/utils/sessionLogger'
 
 const log = createLogger('ActionLoop')
 
@@ -73,6 +76,7 @@ export async function runActionLoop(
   motorService: MotorService,
   factExtractor?: FactExtractor,
   searchService?: SearchService,
+  sessionLogger?: SessionLogger,
 ): Promise<LLMMessage[]> {
   const userFacts = factExtractor
     ? factExtractor.getFactsText(persona.id)
@@ -111,8 +115,10 @@ export async function runActionLoop(
     displays: displayInfo,
   }, persona.id)
 
-  // ── Loop state ──
-  let screenshot: Buffer | null = null
+  // Take initial screenshot so the FIRST iteration has visual context
+  // Without this, LLM guesses coordinates in full-screen space instead
+  // of screenshot space, causing out-of-bounds clicks after MotorService scaling.
+  let screenshot: Buffer | null = await visionService.takeScreenshot()
   const executionBranch: string[] = []
 
   // NO fake user/model system prompt pair — use native systemInstruction instead
@@ -130,47 +136,13 @@ export async function runActionLoop(
   let fullResponse = ''
 
   // ── Plan decomposition: break command into steps upfront ──
-  const PlanSchema = z.object({
-    steps: z.array(z.string().describe('Short description of one atomic step')),
-  })
-  const planJsonSchema = z.toJSONSchema(PlanSchema) as Record<string, unknown>
+  const steps = await planSteps(command, history, intelligence)
+  const stepTasks: StepTask[] = createStepTasks(steps)
+  sessionLogger?.step(`Task plan: ${steps.length} step(s)`)
 
-  const stepTasks: Array<{ id: string; text: string; status: 'queued' | 'active' | 'done' | 'failed'; createdAt: string }> = []
-  function emitSteps() {
-    mainEventBus.emit('agent:action-steps', [...stepTasks])
-  }
-
-  // Build recent context summary for the planner
-  const recentHistory = history.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text.substring(0, 120)}`).join('\n')
-  const contextBlock = recentHistory ? `\n\nRecent conversation context:\n${recentHistory}` : ''
-
-  try {
-    const planRaw = await intelligence.chatStructured(
-      [{ role: 'user', text: `Break this user command into individual atomic steps. Each step should be ONE action.${contextBlock}\n\nRules:\n- Search/lookup = single "Search for <query>" step\n- Opening a URL in a browser = ONE step (not "open browser" + "navigate", just "Open URL in Chrome")\n- Use conversation context to resolve references like "this", "его", "it"\n\nCommand: "${command}"` }],
-      planJsonSchema,
-      undefined,
-      'You decompose user commands into atomic action steps. Return a JSON object with a "steps" array of short step descriptions. Keep descriptions concise (5-10 words). You have a built-in web search tool — for information lookup use a single "Search for X" step. Opening a URL = one single step.',
-    )
-    const plan = PlanSchema.parse(JSON.parse(planRaw))
-    const now = new Date().toISOString()
-
-    // Only show task queue and inject plan when there are multiple steps
-    if (plan.steps.length > 1) {
-      for (const stepText of plan.steps) {
-        stepTasks.push({
-          id: randomUUID(),
-          text: stepText,
-          status: 'queued',
-          createdAt: now,
-        })
-      }
-      emitSteps()
-      // Inject plan into the action prompt so LLM follows it
-      userPrompt += `\n\n## Execution Plan (follow these steps in order, one per response):\n${plan.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
-    }
-    log.info(`Plan: ${plan.steps.length} steps — ${plan.steps.join(', ')}`)
-  } catch (err) {
-    log.warn('Planning step failed, continuing without plan:', err)
+  // Inject plan into the action prompt so LLM follows it
+  if (steps.length > 1) {
+    userPrompt += `\n\n## Execution Plan (follow these steps in order, one per response):\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
   }
 
   // Build messages array after plan is ready
@@ -178,30 +150,6 @@ export async function runActionLoop(
     ...history,
     { role: 'user', text: userPrompt },
   ]
-
-  /** Activate the next queued step or create an ad-hoc one */
-  function activateStep(reason: string): string {
-    const nextQueued = stepTasks.find(s => s.status === 'queued')
-    if (nextQueued) {
-      nextQueued.status = 'active'
-      nextQueued.text = reason || nextQueued.text // update with actual reason
-      emitSteps()
-      return nextQueued.id
-    }
-    // Ad-hoc step (not in plan)
-    const id = randomUUID()
-    stepTasks.push({ id, text: reason, status: 'active', createdAt: new Date().toISOString() })
-    emitSteps()
-    return id
-  }
-
-  function markStep(id: string, status: 'done' | 'failed') {
-    const step = stepTasks.find(s => s.id === id)
-    if (step) {
-      step.status = status
-      emitSteps()
-    }
-  }
 
   stateMachine.transition('LLM_RESPONDING')
 
@@ -220,9 +168,11 @@ export async function runActionLoop(
 
     try {
       // Ask LLM for next action — structured output forces valid JSON
+      const stopLLM = sessionLogger?.startTimer(`Iteration ${iteration} LLM call`)
       const llmResponse = screenshot
         ? await intelligence.chatWithVisionStructured(messages, screenshot, actionJsonSchema, undefined, systemPrompt)
         : await intelligence.chatStructured(messages, actionJsonSchema, undefined, systemPrompt)
+      stopLLM?.()
       screenshot = null
       log.debug(`LLM: ${llmResponse.slice(0, 200)}`)
 
@@ -249,11 +199,12 @@ export async function runActionLoop(
       if (action.action === 'done') {
         fullResponse = action.text ?? llmResponse
         log.info('Agent signaled done')
+        sessionLogger?.step('Agent signaled done')
         // Mark any remaining queued steps as done (skipped)
         for (const s of stepTasks) {
           if (s.status === 'queued') s.status = 'done'
         }
-        emitSteps()
+        emitSteps(stepTasks)
         break
       }
 
@@ -281,14 +232,16 @@ export async function runActionLoop(
       if (action.action === 'search') {
         if (searchService && action.query) {
           // Emit "searching" state for frontend animation
-          mainEventBus.emit('agent:search-results', { query: action.query, results: [], searching: true })
+          mainEventBus.emit('agent:search-results', { type: 'web', query: action.query, results: [], fileResults: [], searching: true })
 
+          const stopSearch = sessionLogger?.startTimer(`Iteration ${iteration} search`)
           const results = await searchService.searchWeb(action.query)
           const formatted = searchService.formatForLLM(results)
-          executionBranch.push(`[${iteration}] SEARCH: "${action.query}" — ${results.length} results`)
+          stopSearch?.()
+          sessionLogger?.step(`Search results: ${results.length}`)
 
           // Emit actual results
-          mainEventBus.emit('agent:search-results', { query: action.query, results, searching: false })
+          mainEventBus.emit('agent:search-results', { type: 'web', query: action.query, results, fileResults: [], searching: false })
 
           messages.push(
             { role: 'model', text: llmResponse },
@@ -304,8 +257,40 @@ export async function runActionLoop(
         continue
       }
 
+      // ── File search (standalone, not in task queue) ──
+      if (action.action === 'searchFiles') {
+        if (searchService && action.query) {
+          mainEventBus.emit('agent:search-results', { type: 'files', query: action.query, results: [], fileResults: [], searching: true })
+
+          const stopSearch = sessionLogger?.startTimer(`Iteration ${iteration} file search`)
+          const fileResults = await searchService.searchFiles(action.query, 10, (progressResults) => {
+            // Stream progressive results to UI
+            mainEventBus.emit('agent:search-results', {
+              type: 'files', query: action.query!, results: [], fileResults: progressResults, searching: true,
+            })
+          })
+          const formatted = searchService.formatFilesForLLM(fileResults)
+          stopSearch?.()
+          sessionLogger?.step(`File search results: ${fileResults.length}`)
+
+          mainEventBus.emit('agent:search-results', { type: 'files', query: action.query, results: [], fileResults, searching: false })
+
+          messages.push(
+            { role: 'model', text: llmResponse },
+            { role: 'user', text: `File search results for "${action.query}":\n\n${formatted}\n\nUse these results to continue the task.` },
+          )
+        } else {
+          executionBranch.push(`[${iteration}] SEARCH_FILES: failed — no search service or query`)
+          messages.push(
+            { role: 'model', text: llmResponse },
+            { role: 'user', text: 'File search is not available. Answer based on your existing knowledge.' },
+          )
+        }
+        continue
+      }
+
       // Activate next planned step in MicrotaskIsland (or create ad-hoc)
-      currentStepId = activateStep(action.reason || `${action.action}`)
+      currentStepId = activateStep(stepTasks, action.reason || `${action.action}`)
 
       // ── Risk check (self-assessed by LLM in action response) ──
       const risk = action.risk || 'medium'
@@ -326,7 +311,9 @@ export async function runActionLoop(
 
       // ── Execute action ──
       blurForAction()
+      const stopExec = sessionLogger?.startTimer(`Iteration ${iteration} action`)
       const result = await motorService.executeAction(action)
+      stopExec?.()
       restoreAfterAction()
 
       const actionDesc = describeAction(action)
@@ -336,7 +323,7 @@ export async function runActionLoop(
         executionBranch.push(`[${iteration}] FAILED: ${actionDesc} — ${result.error}`)
         log.error(`Failed (${consecutiveFailures}/${maxConsecutiveFailures}): ${result.error}`)
         // Mark step as failed in MicrotaskIsland
-        if (currentStepId) markStep(currentStepId, 'failed')
+        if (currentStepId) markStep(stepTasks, currentStepId, 'failed')
         const branchText = formatBranch(executionBranch)
         const failedPrompt = promptLoader.load('action_failed', {
           error: result.error ?? 'Unknown error',
@@ -353,8 +340,9 @@ export async function runActionLoop(
       consecutiveFailures = 0
       const output = result.output ? ` → output: ${result.output.slice(0, 500)}` : ''
       executionBranch.push(`[${iteration}] OK: ${actionDesc}${output}`)
+      sessionLogger?.step(`OK: ${actionDesc}${output.slice(0, 100)}`)
       // Mark step as done in MicrotaskIsland
-      if (currentStepId) markStep(currentStepId, 'done')
+      if (currentStepId) markStep(stepTasks, currentStepId, 'done')
 
       // Auto-screenshot after mouse actions for verification
       const isMouseAction = ['click', 'doubleClick', 'rightClick'].includes(action.action)
@@ -391,7 +379,7 @@ export async function runActionLoop(
   // ── Cleanup ──
   mainEventBus.emit('agent:action', null)
   // Final emit — steps remain visible in MicrotaskIsland (user dismisses manually)
-  emitSteps()
+  emitSteps(stepTasks)
 
   // Emit action log for history
   if (executionBranch.length > 0) {
@@ -420,9 +408,13 @@ export async function runActionLoop(
     })
   }
 
+  sessionLogger?.step(`Total iterations: ${iteration}`)
+
   // Stream final response to UI
   if (fullResponse.trim()) {
+    const stopStream = sessionLogger?.startTimer('Response streaming')
     await streamFinalResponse(fullResponse, persona.id, factExtractor)
+    stopStream?.()
   }
 
   stateMachine.transition('TASK_DONE')

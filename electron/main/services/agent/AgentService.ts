@@ -14,6 +14,8 @@ import { AgentStateMachine } from './AgentState'
 import { AgentLoop } from './AgentLoop'
 import { MicrotaskQueue } from './MicrotaskQueue'
 import { mainEventBus } from '@electron/utils/eventBus'
+import { getConfig } from '@electron/utils/config'
+import { SessionLogger } from '@electron/utils/sessionLogger'
 
 /**
  * AgentService — top-level orchestrator for the agent brain.
@@ -81,7 +83,7 @@ export class AgentService extends BaseService {
 
     // Bootstrap classifier subsystem
     this.classifierService = new ClassifierService()
-    this.classifierService.register(new IntentClassifier(intelligence))
+    this.classifierService.register(new IntentClassifier(intelligence, this.promptLoader))
 
     this.loop = new AgentLoop(
       intelligence,
@@ -160,13 +162,19 @@ export class AgentService extends BaseService {
 
     const prevLen = this.history.length
 
+    // Create session logger if debug log mode is enabled
+    const persona = this.personaService.getActive()
+    const sessionLogger = getConfig().ui.debugLog
+      ? new SessionLogger(text, persona.name)
+      : undefined
+
     try {
-      this.history = await this.loop.run(text, this.history)
+      this.history = await this.loop.run(text, this.history, sessionLogger)
 
       // Auto-save new exchange to MemoryService
       if (this.history.length > prevLen) {
         const newMessages = this.history.slice(prevLen)
-        const personaId = this.personaService.getActive().id
+        const personaId = persona.id
         // Messages come in pairs: user + model
         for (let i = 0; i < newMessages.length - 1; i += 2) {
           this.memoryService.appendMessages(personaId, newMessages[i], newMessages[i + 1])
@@ -174,8 +182,12 @@ export class AgentService extends BaseService {
       }
     } catch (err) {
       this.log.error('Agent loop error:', err)
+      sessionLogger?.step(`ERROR: ${err}`)
       this.stateMachine.reset()
     }
+
+    // Flush session log to disk
+    sessionLogger?.flush()
 
     this.busy = false
     await this.processQueue()

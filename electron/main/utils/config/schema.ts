@@ -23,6 +23,8 @@ export interface UIConfig {
   openDevTools: boolean
   /** Minimum log level */
   logLevel: 'debug' | 'info' | 'warn' | 'error'
+  /** Write per-request session logs to {userData}/logs/ */
+  debugLog: boolean
 }
 
 export interface LLMConfig {

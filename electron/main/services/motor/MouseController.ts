@@ -1,58 +1,58 @@
-import { mouse, Point, Button, straightTo } from '@nut-tree-fork/nut-js'
+import robot from '@hurdlegroup/robotjs'
 import { createLogger } from '@electron/utils/logger'
 
 const log = createLogger('MouseController')
 
 /**
- * MouseController — wraps nut.js mouse API.
+ * MouseController — wraps robotjs mouse API.
  *
  * Provides high-level methods for mouse operations:
  * click, double-click, right-click, move, drag, scroll.
+ *
+ * All methods are synchronous (robotjs is a native addon).
  */
 export class MouseController {
   /** Move to coordinates and left-click */
-  async click(x: number, y: number): Promise<void> {
+  click(x: number, y: number): void {
     log.info(`click(${x}, ${y})`)
-    await mouse.setPosition(new Point(x, y))
-    await mouse.click(Button.LEFT)
+    robot.moveMouse(x, y)
+    robot.mouseClick()
   }
 
   /** Move to coordinates and double-click */
-  async doubleClick(x: number, y: number): Promise<void> {
+  doubleClick(x: number, y: number): void {
     log.info(`doubleClick(${x}, ${y})`)
-    await mouse.setPosition(new Point(x, y))
-    await mouse.doubleClick(Button.LEFT)
+    robot.moveMouse(x, y)
+    robot.mouseClick('left', true)
   }
 
   /** Move to coordinates and right-click */
-  async rightClick(x: number, y: number): Promise<void> {
+  rightClick(x: number, y: number): void {
     log.info(`rightClick(${x}, ${y})`)
-    await mouse.setPosition(new Point(x, y))
-    await mouse.click(Button.RIGHT)
+    robot.moveMouse(x, y)
+    robot.mouseClick('right')
   }
 
   /** Move mouse to coordinates without clicking */
-  async moveTo(x: number, y: number): Promise<void> {
+  moveTo(x: number, y: number): void {
     log.debug(`moveTo(${x}, ${y})`)
-    await mouse.move(straightTo(new Point(x, y)))
+    robot.moveMouse(x, y)
   }
 
   /** Drag from one point to another */
-  async drag(fromX: number, fromY: number, toX: number, toY: number): Promise<void> {
+  drag(fromX: number, fromY: number, toX: number, toY: number): void {
     log.info(`drag(${fromX},${fromY} → ${toX},${toY})`)
-    await mouse.setPosition(new Point(fromX, fromY))
-    await mouse.pressButton(Button.LEFT)
-    await mouse.move(straightTo(new Point(toX, toY)))
-    await mouse.releaseButton(Button.LEFT)
+    robot.moveMouse(fromX, fromY)
+    robot.mouseToggle('down')
+    robot.dragMouse(toX, toY)
+    robot.mouseToggle('up')
   }
 
   /** Scroll up or down */
-  async scroll(direction: 'up' | 'down', amount: number = 3): Promise<void> {
+  scroll(direction: 'up' | 'down', amount: number = 3): void {
     log.info(`scroll(${direction}, ${amount})`)
-    if (direction === 'up') {
-      await mouse.scrollUp(amount)
-    } else {
-      await mouse.scrollDown(amount)
-    }
+    // robotjs scrollMouse: positive y = up, negative y = down
+    const scrollAmount = direction === 'up' ? amount : -amount
+    robot.scrollMouse(0, scrollAmount)
   }
 }

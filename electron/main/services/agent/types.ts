@@ -16,6 +16,7 @@ export type ActionType =
   | 'runCommand'
   | 'screenshot'
   | 'search'
+  | 'searchFiles'
   | 'wait'
   | 'done'
 

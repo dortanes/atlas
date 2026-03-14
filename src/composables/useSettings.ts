@@ -13,6 +13,7 @@ export interface UIConfig {
   positionSide: 'left' | 'right' | 'center'
   openDevTools: boolean
   logLevel: 'debug' | 'info' | 'warn' | 'error'
+  debugLog: boolean
 }
 
 export interface LLMConfig {
@@ -69,6 +70,7 @@ export function useSettings() {
       positionSide: 'right',
       openDevTools: false,
       logLevel: 'debug',
+      debugLog: false,
     },
     llm: {
       provider: 'gemini',

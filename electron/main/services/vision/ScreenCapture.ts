@@ -24,15 +24,17 @@ export interface Rect {
 export class ScreenCapture {
   /**
    * Capture the full primary display, optimized for LLM.
-   * Returns a resized JPEG buffer.
+   *
+   * @param format — 'jpeg' (default, smaller) or 'png' (required by Computer Use API)
+   * @returns Resized buffer in the requested format.
    */
-  async captureFullScreen(): Promise<Buffer> {
+  async captureFullScreen(format: 'jpeg' | 'png' = 'jpeg'): Promise<Buffer> {
     log.debug('Capturing full screen...')
     const img = await screenshot({ format: 'png' })
     const raw = Buffer.isBuffer(img) ? img : Buffer.from(img)
     log.debug(`Raw screenshot: ${raw.length} bytes`)
 
-    const optimized = this.optimize(raw)
+    const optimized = format === 'png' ? this.optimizePng(raw) : this.optimize(raw)
     log.info(`Screenshot captured: ${raw.length} → ${optimized.length} bytes (${Math.round(optimized.length / 1024)}KB)`)
     return optimized
   }
@@ -84,5 +86,28 @@ export class ScreenCapture {
 
     const resized = image.resize({ width: newWidth, height: newHeight, quality: 'good' })
     return resized.toJPEG(screenshotQuality)
+  }
+
+  /**
+   * Resize a screenshot but keep PNG format.
+   *
+   * Required by the Gemini Computer Use API which mandates `image/png`
+   * in function response inline_data. Larger than JPEG but API-compliant.
+   */
+  private optimizePng(pngBuffer: Buffer): Buffer {
+    const image = nativeImage.createFromBuffer(pngBuffer)
+    const { width, height } = image.getSize()
+    const { screenshotMaxWidth } = getConfig().agent
+
+    if (width <= screenshotMaxWidth) {
+      return image.toPNG()
+    }
+
+    const scale = screenshotMaxWidth / width
+    const newWidth = screenshotMaxWidth
+    const newHeight = Math.round(height * scale)
+
+    const resized = image.resize({ width: newWidth, height: newHeight, quality: 'good' })
+    return resized.toPNG()
   }
 }

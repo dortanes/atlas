@@ -6,7 +6,7 @@ import './MicrotaskIsland.css'
 /** Map of status → visual indicator */
 const STATUS_ICON: Record<MicrotaskStatus, string> = {
   done: 'check_circle',
-  active: 'arrow_right',
+  active: '', // handled separately — circular spinner
   queued: 'radio_button_unchecked',
   failed: 'cancel',
 }
@@ -15,9 +15,10 @@ const STATUS_ICON: Record<MicrotaskStatus, string> = {
  * MicrotaskIsland — displays the queue of planned microtasks.
  *
  * Shows all tasks with their current status:
- * - ✓ done, → active (highlighted), ○ queued, ✗ failed
+ * - ✓ done, ⟳ active (spinner), ○ queued, ✗ failed
  *
  * When all tasks are complete, a dismiss (X) button appears.
+ * Progress label (e.g. "2/5") is shown in the header.
  */
 export default defineComponent({
   name: 'MicrotaskIsland',
@@ -26,6 +27,14 @@ export default defineComponent({
     tasks: {
       type: Array as PropType<Microtask[]>,
       required: true,
+    },
+    progressPercent: {
+      type: Number,
+      default: 0,
+    },
+    progressLabel: {
+      type: String,
+      default: '',
     },
   },
 
@@ -37,7 +46,10 @@ export default defineComponent({
       props.tasks.length > 0 && props.tasks.every(t => t.status === 'done' || t.status === 'failed'),
     )
 
-    return { allDone }
+    /** Show progress info when there are 2+ tasks */
+    const showProgress = computed(() => props.tasks.length >= 2)
+
+    return { allDone, showProgress }
   },
 
   methods: {
@@ -54,6 +66,14 @@ export default defineComponent({
         <div class="island__header">
           <span class="island__icon">list_alt</span>
           <span class="island__title">Task Queue</span>
+
+          {/* Progress label in header */}
+          {this.showProgress && (
+            <span class="microtask__progress-label">
+              {this.progressLabel}
+            </span>
+          )}
+
           {this.allDone && (
             <button
               class="island__dismiss"
@@ -70,9 +90,13 @@ export default defineComponent({
               key={task.id}
               class={['microtask__item', this.statusClass(task.status)].join(' ')}
             >
-              <span class="microtask__indicator">
-                {STATUS_ICON[task.status]}
-              </span>
+              {task.status === 'active' ? (
+                <span class="microtask__spinner" />
+              ) : (
+                <span class="microtask__indicator">
+                  {STATUS_ICON[task.status]}
+                </span>
+              )}
               <span class="microtask__text">{task.text}</span>
             </li>
           ))}

@@ -6,11 +6,22 @@ import { api } from '@/api'
  *
  * Subscribes to search result events from the agent's search action.
  * Handles searching state (loading animation) and result display.
+ * Supports both web search and local file search results.
  */
 
+export interface FileSearchResultItem {
+  name: string
+  path: string
+  isDirectory: boolean
+  size?: number
+  modified?: string
+}
+
 export interface SearchData {
+  type: 'web' | 'files'
   query: string
   results: Array<{ title: string; url: string; snippet: string }>
+  fileResults: FileSearchResultItem[]
   searching: boolean
 }
 
@@ -31,11 +42,33 @@ function initSubscription() {
     onData(data: SearchData) {
       if (data.searching) {
         // Show searching animation
-        searchData.value = { query: data.query, results: [], searching: true }
+        searchData.value = {
+          type: data.type ?? 'web',
+          query: data.query,
+          results: [],
+          fileResults: [],
+          searching: true,
+        }
         dismissing.value = false
-      } else if (data.results.length > 0) {
-        // Show results
-        searchData.value = { query: data.query, results: data.results, searching: false }
+      } else if (data.type === 'files' && data.fileResults.length > 0) {
+        // Show file results
+        searchData.value = {
+          type: 'files',
+          query: data.query,
+          results: [],
+          fileResults: data.fileResults,
+          searching: false,
+        }
+        dismissing.value = false
+      } else if (data.type === 'web' && data.results.length > 0) {
+        // Show web results
+        searchData.value = {
+          type: 'web',
+          query: data.query,
+          results: data.results,
+          fileResults: [],
+          searching: false,
+        }
         dismissing.value = false
       } else {
         // No results — hide
@@ -65,5 +98,13 @@ export function useSearch() {
     dismissing.value = false
   }
 
-  return { searchData, dismissing, dismiss, clear }
+  function openFile(path: string) {
+    api.agent.openFileResult.mutate({ path }).catch(() => {})
+  }
+
+  function revealFile(path: string) {
+    api.agent.openFileResult.mutate({ path, reveal: true }).catch(() => {})
+  }
+
+  return { searchData, dismissing, dismiss, clear, openFile, revealFile }
 }

@@ -3,6 +3,7 @@ import { BaseTTSProvider } from './providers/BaseTTSProvider'
 import { ElevenLabsProvider } from './providers/ElevenLabsProvider'
 import { getConfig, saveConfig, type AppConfig } from '@electron/utils/config'
 import { mainEventBus } from '@electron/utils/eventBus'
+import { formatTTSError, isTTSQuotaError } from '@electron/utils/ttsErrors'
 import type { PersonaService } from '@electron/services/persona/PersonaService'
 
 /**
@@ -171,7 +172,29 @@ export class TTSService extends BaseService {
         mainEventBus.emit('tts:audio', { chunk: Buffer.alloc(0), done: true })
       }
     } catch (err) {
+      const message = formatTTSError(err)
       this.log.error('TTS stream error:', err)
+
+      // Surface error as a dismissable warning in WarningIsland
+      mainEventBus.emit('agent:warning', {
+        id: 'tts-runtime-error',
+        message,
+        dismissable: true,
+      })
+
+      // Auto-disable TTS on quota exhaustion to avoid spamming failed requests
+      if (isTTSQuotaError(err)) {
+        this.log.warn('TTS quota exhausted — auto-disabling TTS')
+        this.provider = null
+        saveConfig({ tts: { enabled: false } })
+
+        // Override warning with explicit "disabled" message
+        mainEventBus.emit('agent:warning', {
+          id: 'tts-runtime-error',
+          message: 'ElevenLabs quota exhausted. TTS has been automatically disabled. Re-enable in Settings → TTS when credits reset.',
+          dismissable: true,
+        })
+      }
     } finally {
       this.speaking = false
       this.abortController = null

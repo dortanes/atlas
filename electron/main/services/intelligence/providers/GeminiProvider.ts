@@ -11,7 +11,7 @@
  * are wrapped uniformly to avoid code duplication.
  */
 
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, Environment } from '@google/genai'
 import { BaseLLMProvider, type LLMMessage, type GenerationConfig } from './BaseLLMProvider'
 import { formatLLMError } from '@electron/utils/llmErrors'
 import { createLogger } from '@electron/utils/logger'
@@ -355,6 +355,73 @@ export class GeminiProvider extends BaseLLMProvider {
       return text
     } catch (err) {
       handleError('chatWithVisionStructured()', err)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Computer Use (Google Native Screen Control)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Computer Use: send conversation with screenshot, using Gemini's native
+   * `computer_use` tool for screen interaction.
+   *
+   * Unlike other methods, this returns the full `GenerateContentResponse`
+   * so the caller can inspect `functionCall` parts (click_at, type_text_at, etc.)
+   * and `safety_decision` data for permission gating.
+   *
+   * @param contents — Gemini-native Content[] (not LLMMessage[])
+   * @param systemInstruction — optional system prompt
+   * @param excludedFunctions — optional list of predefined funcs to exclude
+   * @returns Full API response with function_call parts
+   */
+  async chatWithComputerUse(
+    contents: Array<{ role: string; parts: Array<Record<string, unknown>> }>,
+    systemInstruction?: string,
+    excludedFunctions?: string[],
+  ) {
+    log.debug(`chatWithComputerUse() ${contents.length} content(s)`)
+
+    // Log contents structure for debugging
+    for (let i = 0; i < contents.length; i++) {
+      const c = contents[i] as { role: string; parts: Array<Record<string, unknown>> }
+      const partSummary = c.parts.map(p => {
+        if (p.text) return `text(${(p.text as string).length}ch)`
+        if (p.functionCall) return `functionCall(${(p.functionCall as Record<string,unknown>).name})`
+        if (p.functionResponse) return `functionResponse(${(p.functionResponse as Record<string,unknown>).name})`
+        if (p.inlineData) return 'inlineData'
+        return Object.keys(p).join(',')
+      }).join(', ')
+      log.debug(`  content[${i}] role=${c.role} parts=[${partSummary}]`)
+    }
+
+    try {
+      const response = await this.client.models.generateContent({
+        model: this.model,
+        contents,
+        config: {
+          systemInstruction,
+          tools: [{
+            computerUse: {
+              environment: Environment.ENVIRONMENT_BROWSER,
+              ...(excludedFunctions?.length ? { excludedPredefinedFunctions: excludedFunctions } : {}),
+            },
+          }],
+        },
+      })
+
+      log.debug(`chatWithComputerUse() candidates: ${response.candidates?.length ?? 0}`)
+      return response
+    } catch (err: unknown) {
+      // Log raw API error details before wrapping
+      const raw = err as Record<string, unknown>
+      log.error(`chatWithComputerUse() RAW error:`, JSON.stringify({
+        message: raw.message,
+        status: raw.status,
+        statusText: raw.statusText,
+        errorDetails: raw.errorDetails,
+      }, null, 2))
+      handleError('chatWithComputerUse()', err)
     }
   }
 }

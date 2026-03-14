@@ -4,6 +4,7 @@ import { trpcRouter, publicProcedure } from '@electron/api/context'
 import { getConfig, saveConfig, type AppConfig } from '@electron/utils/config'
 import { mainEventBus } from '@electron/utils/eventBus'
 import { PromptLoader } from '@electron/services/intelligence/PromptLoader'
+import { openLogsFolder } from '@electron/utils/sessionLogger'
 
 const promptLoader = new PromptLoader()
 
@@ -19,6 +20,7 @@ const uiSchema = z.object({
   positionSide: z.enum(['left', 'right', 'center']).optional(),
   openDevTools: z.boolean().optional(),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+  debugLog: z.boolean().optional(),
 }).optional()
 
 const llmSchema = z.object({
@@ -122,4 +124,10 @@ export const settingsRouter = trpcRouter({
       promptLoader.reset(input.name, input.personaId)
       return promptLoader.load(input.name, undefined, input.personaId)
     }),
+
+  /** Open session logs folder in OS file manager */
+  openSessionLogs: publicProcedure.mutation(async () => {
+    await openLogsFolder()
+    return true
+  }),
 })

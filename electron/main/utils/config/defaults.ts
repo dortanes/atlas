@@ -14,6 +14,7 @@ export const defaultConfig: AppConfig = {
     positionSide: 'right',
     openDevTools: !app.isPackaged,
     logLevel: 'debug',
+    debugLog: false,
   },
   llm: {
     provider: 'gemini',

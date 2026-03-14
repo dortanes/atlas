@@ -56,6 +56,7 @@ const FALLBACK_MESSAGES: Record<string, string> = {
   'llm.error.permission_denied': 'API key is invalid or lacks permissions. Check your key in Settings → LLM.',
   'llm.error.model_not_found': 'Model not found. Check the model name in Settings → LLM.',
   'llm.error.rate_limit': 'Rate limit exceeded. Wait a moment and try again.',
+  'llm.error.quota_exceeded': 'API quota exhausted. Check your plan limits or wait for credits to reset.',
   'llm.error.internal': 'API internal error. Try again later.',
   'llm.error.unavailable': 'API temporarily unavailable. Try again later.',
 }
@@ -90,6 +91,11 @@ export function formatLLMError(err: unknown): string {
   }
 
   const message = err.message || ''
+
+  // Check for quota/token exhaustion keywords
+  if (message.includes('quota_exceeded') || message.toLowerCase().includes('quota')) {
+    return resolveMessage('llm.error.quota_exceeded')
+  }
 
   // Check for known status codes in the error message
   for (const [code, key] of Object.entries(STATUS_MESSAGES)) {

@@ -3,11 +3,13 @@
  *
  * This is a thin facade that:
  * 1. Checks if the intelligence service is ready
- * 2. Classifies the command intent (action vs chat)
+ * 2. Classifies the command intent (chat / direct / action)
  * 3. Delegates to the appropriate handler module
  *
  * The actual logic lives in:
+ * - {@link DirectActionLoop} — fast path for simple OS actions (no vision)
  * - {@link ActionLoop} — screen interaction loop (act → observe → decide)
+ * - {@link ComputerUseLoop} — native Gemini computer_use loop
  * - {@link ChatMode} — conversational streaming response
  * - {@link FactExtractor} — async fact mining from conversations
  * - {@link ResponseStreamer} — word-by-word response animation
@@ -27,17 +29,21 @@ import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { FactService } from '@electron/services/memory/FactService'
 import { FactExtractor } from './FactExtractor'
 import { runActionLoop } from './ActionLoop'
+import { runComputerUseLoop } from './ComputerUseLoop'
+import { runDirectAction } from './DirectActionLoop'
 import { runChatOnly } from './ChatMode'
 import { SearchService } from '@electron/services/search/SearchService'
+import type { SessionLogger } from '@electron/utils/sessionLogger'
 
 const log = createLogger('AgentLoop')
 
 /**
  * AgentLoop — processes a single user command.
  *
- * Two modes of operation:
+ * Three modes of operation:
  * 1. **Chat mode** (no vision/motor): LLM → stream response → done
- * 2. **Action mode** (vision + motor): act → observe → decide cycle
+ * 2. **Direct mode** (no vision): single LLM call → shell/hotkey → done
+ * 3. **Action mode** (vision + motor): act → observe → decide cycle
  *
  * The loop emits events for all UI islands:
  * - `agent:action`     → ActionIsland (current step + progress)
@@ -86,17 +92,20 @@ export class AgentLoop {
   /**
    * Run the agent loop for a given command.
    *
-   * Decides between action mode (vision + motor) and chat-only mode
-   * using the LLM classifier for language-agnostic intent detection.
+   * Classifies intent into three categories:
+   * - `chat`   → ChatMode (streaming response, no OS interaction)
+   * - `direct` → DirectActionLoop (shell/hotkey, no screenshots)
+   * - `action` → ActionLoop/ComputerUseLoop (full vision + motor)
    *
    * @param command — the user's text command
    * @param history — prior conversation messages
    * @returns Updated conversation history including this exchange
    */
-  async run(command: string, history: LLMMessage[]): Promise<LLMMessage[]> {
+  async run(command: string, history: LLMMessage[], sessionLogger?: SessionLogger): Promise<LLMMessage[]> {
     // Guard: intelligence service must be initialized
     if (!this.intelligence.isReady) {
       log.error('Intelligence service not ready — aborting')
+      sessionLogger?.step('ABORT: Intelligence service not ready')
       mainEventBus.emit('agent:warning', {
         id: 'missing-api-key',
         message: 'No API key configured. Set your Gemini API key in the config.',
@@ -107,29 +116,48 @@ export class AgentLoop {
 
     const persona = this.getPersona()
 
-    // Use action loop if vision + motor are available AND intent classifier says yes
-    if (this.visionService && this.motorService) {
-      const intentClassifier = this.classifierService.get<IntentClassifier>('intent')
-      const needsAction = await intentClassifier.classify({ command, recentHistory: history })
+    // Classify intent: chat / direct / action
+    sessionLogger?.section('Intent Classification')
+    const stopClassify = sessionLogger?.startTimer('Duration')
+    const intentClassifier = this.classifierService.get<IntentClassifier>('intent')
+    const intent = await intentClassifier.classify({ command, recentHistory: history })
+    stopClassify?.()
+    sessionLogger?.step(`Result: ${intent}`)
 
-      if (needsAction) {
-        return runActionLoop(
-          command,
-          history,
-          this.intelligence,
-          this.promptLoader,
-          this.stateMachine,
-          persona,
-          this.visionService,
-          this.motorService,
-          this.factExtractor ?? undefined,
-          this.searchService ?? undefined,
-        )
+    // ── Direct mode (no vision needed) ──
+    if (intent === 'direct' && this.motorService) {
+      log.info('Routing to Direct Action (shell/hotkey, no vision)')
+      sessionLogger?.section('Direct Action')
+      const result = await runDirectAction(
+        command,
+        history,
+        this.intelligence,
+        this.promptLoader,
+        this.stateMachine,
+        persona,
+        this.motorService,
+        this.factExtractor ?? undefined,
+        this.searchService ?? undefined,
+        sessionLogger,
+      )
+
+      // If LLM said it needs vision, fall through to action mode
+      if (result.needsVision) {
+        log.info('Direct mode requested vision fallback — routing to action loop')
+        sessionLogger?.step('Fallback: needs vision → action mode')
+        return this.runActionMode(command, history, persona, sessionLogger)
       }
+
+      return result.history
     }
 
-    // Chat-only mode for conversational messages
-    // Agent stays in `processing` (no screen interaction — `acting` is reserved for action loop)
+    // ── Action mode (vision + motor) ──
+    if (intent === 'action' && this.visionService && this.motorService) {
+      return this.runActionMode(command, history, persona, sessionLogger)
+    }
+
+    // ── Chat mode (conversational) ──
+    sessionLogger?.section('Chat Mode')
     const result = await runChatOnly(
       command,
       history,
@@ -138,8 +166,72 @@ export class AgentLoop {
       persona,
       this.visionService,
       this.factExtractor ?? undefined,
+      sessionLogger,
     )
     this.stateMachine.transition('TASK_DONE')
     return result
+  }
+
+  /**
+   * Run the full action mode — prefers Computer Use if available,
+   * falls back to the structured-JSON ActionLoop.
+   */
+  private async runActionMode(
+    command: string,
+    history: LLMMessage[],
+    persona: AgentProfile,
+    sessionLogger?: SessionLogger,
+  ): Promise<LLMMessage[]> {
+    if (!this.visionService || !this.motorService) {
+      log.warn('Vision/Motor not available — falling back to chat')
+      sessionLogger?.step('Fallback: Vision/Motor unavailable → chat mode')
+      const result = await runChatOnly(
+        command,
+        history,
+        this.intelligence,
+        this.promptLoader,
+        persona,
+        this.visionService,
+        this.factExtractor ?? undefined,
+        sessionLogger,
+      )
+      this.stateMachine.transition('TASK_DONE')
+      return result
+    }
+
+    // Prefer native Computer Use if model supports it
+    if (this.intelligence.supportsComputerUse && this.intelligence.computerUseGemini) {
+      log.info('Routing to Computer Use loop (native screen control)')
+      sessionLogger?.section('Computer Use Loop')
+      return runComputerUseLoop(
+        command,
+        history,
+        this.intelligence.computerUseGemini,
+        this.intelligence,
+        this.promptLoader,
+        this.stateMachine,
+        persona,
+        this.visionService,
+        this.motorService,
+        this.factExtractor ?? undefined,
+        sessionLogger,
+      )
+    }
+
+    // Fallback: existing structured-JSON action loop
+    sessionLogger?.section('Action Loop')
+    return runActionLoop(
+      command,
+      history,
+      this.intelligence,
+      this.promptLoader,
+      this.stateMachine,
+      persona,
+      this.visionService,
+      this.motorService,
+      this.factExtractor ?? undefined,
+      this.searchService ?? undefined,
+      sessionLogger,
+    )
   }
 }

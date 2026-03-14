@@ -28,6 +28,7 @@ import { createLogger } from '@electron/utils/logger'
 import { sleep } from '@electron/utils/other'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { FactExtractor } from './FactExtractor'
+import type { SessionLogger } from '@electron/utils/sessionLogger'
 
 const log = createLogger('ChatMode')
 
@@ -51,6 +52,7 @@ export async function runChatOnly(
   persona: AgentProfile,
   visionService?: VisionService | null,
   factExtractor?: FactExtractor,
+  sessionLogger?: SessionLogger,
 ): Promise<LLMMessage[]> {
   const userFacts = factExtractor
     ? factExtractor.getFactsText(persona.id)
@@ -83,6 +85,7 @@ export async function runChatOnly(
 
   try {
     // Pass system prompt via native systemInstruction — saves ~300 tokens
+    const stopStream = sessionLogger?.startTimer('LLM streaming')
     const stream = intelligence.streamWithThoughts(messages, systemPrompt)
 
     for await (const chunk of stream) {
@@ -146,6 +149,9 @@ export async function runChatOnly(
     }
 
     log.info(`Response complete (${fullResponse.length} chars, thoughts: ${hadThoughts}, persona: ${persona.name})`)
+    stopStream?.()
+    sessionLogger?.step(`Response length: ${fullResponse.length} chars`)
+    sessionLogger?.step(`Had thoughts: ${hadThoughts}`)
 
     // Trigger TTS for the response
     if (fullResponse.trim()) {

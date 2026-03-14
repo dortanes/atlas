@@ -1,6 +1,7 @@
 import * as z from 'zod'
 import { BaseClassifier } from './BaseClassifier'
 import { IntelligenceService } from '@electron/services/intelligence/IntelligenceService'
+import { PromptLoader } from '@electron/services/intelligence/PromptLoader'
 import { IntentClassificationSchema } from '@electron/services/agent/schemas'
 import { createLogger } from '@electron/utils/logger'
 
@@ -15,34 +16,38 @@ export interface IntentInput {
   recentHistory?: Array<{ role: string; text: string }>
 }
 
+/** Intent classification result */
+export type IntentResult = 'chat' | 'direct' | 'action'
+
 /**
- * IntentClassifier — determines whether a user command requires
- * screen interaction (action loop) or is a simple chat message.
+ * IntentClassifier — determines how to handle a user command.
  *
- * Uses structured output with `IntentClassificationSchema` to get
- * a clean `{ needs_action: boolean }` instead of parsing YES/NO text.
+ * Three categories:
+ * - `chat`   — conversational, no OS interaction needed
+ * - `direct` — simple OS action via shell command or hotkey (no screenshot needed)
+ * - `action` — needs screen interaction (clicking, reading, navigating GUI)
  *
- * Accepts recent conversation history to avoid misclassifying
- * follow-up questions about screen content as simple chat.
+ * Uses structured output with `IntentClassificationSchema` for reliable 3-way
+ * classification in a single LLM call.
  */
-export class IntentClassifier extends BaseClassifier<IntentInput, boolean> {
+export class IntentClassifier extends BaseClassifier<IntentInput, IntentResult> {
   readonly name = 'intent'
 
   private intelligence: IntelligenceService
+  private promptLoader: PromptLoader
 
-  constructor(intelligence: IntelligenceService) {
+  constructor(intelligence: IntelligenceService, promptLoader: PromptLoader) {
     super()
     this.intelligence = intelligence
+    this.promptLoader = promptLoader
   }
 
   /**
-   * Returns `true` if the command needs the action loop (vision + motor),
-   * `false` for chat-only mode.
+   * Classify the user command into one of three categories.
    *
-   * Uses structured output for reliable boolean classification.
-   * Falls back to `false` (chat mode) on any error.
+   * Falls back to `'chat'` on any error.
    */
-  async classify(input: IntentInput): Promise<boolean> {
+  async classify(input: IntentInput): Promise<IntentResult> {
     try {
       // Build context from recent history (last 4 messages)
       let contextBlock = ''
@@ -52,26 +57,23 @@ export class IntentClassifier extends BaseClassifier<IntentInput, boolean> {
         contextBlock = `\n\nRecent conversation:\n${lines.join('\n')}\n`
       }
 
+      const prompt = this.promptLoader.load('intent_classifier', {
+        context: contextBlock,
+        command: input.command,
+      })
+
       const response = await this.intelligence.classifyStructured(
-        `Does this user message require either:
-1. Interacting with the computer screen (clicking, typing, opening apps, scrolling, looking at screen content, taking a screenshot)
-2. Searching the web for information (finding specific people, current events, recommendations, prices, reviews, accounts, links, or any factual question that benefits from up-to-date web data)
-
-Answer YES (needs_action=true) if EITHER condition applies.
-Answer NO (needs_action=false) only for casual conversation, greetings, opinions, or questions the AI can answer from general knowledge without needing current/specific data.
-
-Consider the conversation context — if previous messages involved screen actions or web searches, follow-up questions likely need action too.${contextBlock}
-Current message: "${input.command}"`,
+        prompt,
         intentJsonSchema,
       )
 
       const parsed = IntentClassificationSchema.parse(JSON.parse(response))
-      const result = parsed.needs_action
-      log.info(`"${input.command}" → ${result ? 'ACTION' : 'CHAT'}`)
+      const result = parsed.intent
+      log.info(`"${input.command}" → ${result.toUpperCase()}`)
       return result
     } catch (err) {
       log.warn('Classification failed, falling back to chat mode:', err)
-      return false
+      return 'chat'
     }
   }
 }

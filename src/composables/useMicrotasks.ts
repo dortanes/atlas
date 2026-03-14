@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { Microtask, MicrotaskStatus } from '@/types/agent'
 import { api } from '@/api'
 
@@ -62,9 +62,30 @@ export function useMicrotasks() {
     tasks.value = next
   }
 
+  /** Number of completed (done + failed) tasks */
+  const completedCount = computed(() =>
+    tasks.value.filter(t => t.status === 'done' || t.status === 'failed').length,
+  )
+
+  /** Overall progress percentage (0–100) */
+  const progressPercent = computed(() => {
+    const total = tasks.value.length
+    if (total === 0) return 0
+    return Math.round((completedCount.value / total) * 100)
+  })
+
+  /** Compact progress label, e.g. "2/5" */
+  const progressLabel = computed(() => {
+    const total = tasks.value.length
+    if (total === 0) return ''
+    return `${completedCount.value}/${total}`
+  })
+
   return {
     tasks,
     addTask,
     setTasks,
+    progressPercent,
+    progressLabel,
   }
 }

@@ -16,6 +16,7 @@ export class IntelligenceService extends BaseService {
   private textProvider: BaseLLMProvider | null = null
   private visionProvider: BaseLLMProvider | null = null
   private classifierProvider: BaseLLMProvider | null = null
+  private cuProvider: GeminiProvider | null = null
   private configHandler: ((cfg: AppConfig) => void) | null = null
 
   async init(): Promise<void> {
@@ -68,31 +69,12 @@ export class IntelligenceService extends BaseService {
       `classifier: ${config.llm.classifierModel || config.llm.textModel}`,
     )
 
-    // Fire-and-forget warmup — pre-warm the API connection so the
-    // user's first real command doesn't suffer a cold-start delay.
-    this.warmup()
+    // Auto-detect Computer Use support from the vision model
+    this.detectComputerUse(config)
+
   }
 
-  /**
-   * Send a tiny request to the classifier provider (cheapest model)
-   * to establish the TCP/TLS connection with the API server.
-   * Runs in background, never blocks startup, failures are silent.
-   */
-  private warmup(): void {
-    if (!this.classifierProvider) return
-    const start = Date.now()
-    this.classifierProvider
-      .chat([{ role: 'user', text: 'hi' }], { temperature: 0, topP: 1, maxOutputTokens: 1 })
-      .then(() => this.log.info(`Warmup complete (${Date.now() - start}ms)`))
-      .catch(() => {
-        this.log.warn('Warmup ping failed — first request may be slow')
-        mainEventBus.emit('agent:warning', {
-          id: 'warmup-failed',
-          message: 'Possible connection issues detected. Make sure your internet connection is stable.',
-          dismissable: true,
-        })
-      })
-  }
+
 
   async dispose(): Promise<void> {
     if (this.configHandler) {
@@ -102,6 +84,7 @@ export class IntelligenceService extends BaseService {
     this.textProvider = null
     this.visionProvider = null
     this.classifierProvider = null
+    this.cuProvider = null
     this.log.info('IntelligenceService disposed')
   }
 
@@ -156,6 +139,10 @@ export class IntelligenceService extends BaseService {
       `vision: ${config.llm.visionModel || config.llm.textModel}, ` +
       `classifier: ${config.llm.classifierModel || config.llm.textModel}`,
     )
+
+    // Re-detect Computer Use support
+    this.cuProvider = null
+    this.detectComputerUse(config)
   }
 
   /** Create a provider instance by name */
@@ -171,9 +158,43 @@ export class IntelligenceService extends BaseService {
     }
   }
 
+  /** Known models that support the computer_use tool */
+  private static readonly CU_MODELS = [
+    'computer-use',
+    'gemini-3-flash',
+    'gemini-3-pro',
+    'gemini-3.1-flash',
+    'gemini-3.1-pro',
+  ]
+
+  /** Check if the vision model supports computer_use based on known model names */
+  private detectComputerUse(config: AppConfig): void {
+    const visionModel = config.llm.visionModel || config.llm.textModel
+    if (!visionModel || config.llm.provider !== 'gemini') return
+
+    const name = visionModel.toLowerCase()
+    // Lite models don't support computer_use even though their names contain supported model names
+    if (name.includes('lite')) return
+
+    if (IntelligenceService.CU_MODELS.some(m => name.includes(m))) {
+      this.cuProvider = new GeminiProvider(config.llm.apiKey, visionModel)
+      this.log.info(`Computer Use enabled for model: ${visionModel}`)
+    }
+  }
+
   /** Whether the service has a usable text provider */
   get isReady(): boolean {
     return this.textProvider !== null
+  }
+
+  /** Whether the computer_use model is available */
+  get supportsComputerUse(): boolean {
+    return this.cuProvider !== null
+  }
+
+  /** Get the GeminiProvider configured for computer_use (or null) */
+  get computerUseGemini(): GeminiProvider | null {
+    return this.cuProvider
   }
 
   // ── Generation configs (built from AppConfig, no duplication) ──

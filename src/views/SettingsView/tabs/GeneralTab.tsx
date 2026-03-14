@@ -1,8 +1,9 @@
 import { defineComponent, type PropType } from 'vue'
+import { api } from '@/api'
 import type { AppConfig } from '@/composables/useSettings'
 
 /**
- * GeneralTab — UI settings: position, log level, alwaysOnTop, devTools.
+ * GeneralTab — UI settings: position, log level, alwaysOnTop, devTools, debugLog.
  */
 export default defineComponent({
   name: 'GeneralTab',
@@ -69,7 +70,28 @@ export default defineComponent({
             onChange={(e: Event) => { ui.openDevTools = (e.target as HTMLInputElement).checked }}
           />
         </label>
+
+        <label class="settings-field settings-field--row">
+          <span class="settings-field__label">Debug Log</span>
+          <span class="settings-field__hint">Write detailed session logs for each request</span>
+          <input
+            type="checkbox"
+            class="settings-field__toggle"
+            checked={ui.debugLog}
+            onChange={(e: Event) => { ui.debugLog = (e.target as HTMLInputElement).checked }}
+          />
+        </label>
+
+        <div class="settings-field">
+          <button
+            class="settings-field__button"
+            onClick={() => { api.settings.openSessionLogs.mutate() }}
+          >
+            📂 Open Logs Folder
+          </button>
+        </div>
       </div>
     )
   },
 })
+

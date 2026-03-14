@@ -28,10 +28,12 @@ export class VisionService extends BaseService {
   }
 
   /**
-   * Take a screenshot and return the raw PNG buffer.
+   * Take a screenshot and return the buffer.
+   *
+   * @param format — 'jpeg' (default) or 'png' (required by Computer Use API)
    */
-  async takeScreenshot(): Promise<Buffer> {
-    return this.capture.captureFullScreen()
+  async takeScreenshot(format: 'jpeg' | 'png' = 'jpeg'): Promise<Buffer> {
+    return this.capture.captureFullScreen(format)
   }
 
   /**

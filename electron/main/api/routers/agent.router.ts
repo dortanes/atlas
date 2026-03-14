@@ -154,19 +154,29 @@ export const agentRouter = trpcRouter({
     })
   }),
 
-  /** Subscribe to search result events */
+  /** Subscribe to search result events (web or file search) */
   onSearchResults: publicProcedure.subscription(() => {
     return observable<{
+      type: 'web' | 'files'
       query: string
       results: Array<{ title: string; url: string; snippet: string }>
+      fileResults: Array<{ name: string; path: string; isDirectory: boolean; size?: number; modified?: string }>
       searching: boolean
     }>((emit) => {
       function onSearchResults(payload: {
+        type?: 'web' | 'files'
         query: string
         results: Array<{ title: string; url: string; snippet: string }>
+        fileResults?: Array<{ name: string; path: string; isDirectory: boolean; size?: number; modified?: string }>
         searching: boolean
       }) {
-        emit.next(payload)
+        emit.next({
+          type: payload.type ?? 'web',
+          query: payload.query,
+          results: payload.results,
+          fileResults: payload.fileResults ?? [],
+          searching: payload.searching,
+        })
       }
 
       mainEventBus.on('agent:search-results', onSearchResults)
@@ -176,6 +186,26 @@ export const agentRouter = trpcRouter({
       }
     })
   }),
+
+  /** Open a file or reveal it in file explorer */
+  openFileResult: publicProcedure
+    .input(z.object({
+      path: z.string(),
+      reveal: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { shell } = await import('electron')
+      if (input.reveal) {
+        shell.showItemInFolder(input.path)
+      } else {
+        const result = await shell.openPath(input.path)
+        if (result) {
+          log.warn(`Failed to open file: ${result}`)
+          return { ok: false, error: result }
+        }
+      }
+      return { ok: true }
+    }),
 
   /** Subscribe to permission requests */
   onPermission: publicProcedure.subscription(() => {

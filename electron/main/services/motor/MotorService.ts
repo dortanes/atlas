@@ -70,7 +70,7 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('click action requires coords')
           const [cx, cy] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${cx}, ${cy}]`)
-          await this.mouse.click(cx, cy)
+          this.mouse.click(cx, cy)
           break
         }
 
@@ -78,7 +78,7 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('doubleClick action requires coords')
           const [dx, dy] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${dx}, ${dy}]`)
-          await this.mouse.doubleClick(dx, dy)
+          this.mouse.doubleClick(dx, dy)
           break
         }
 
@@ -86,7 +86,7 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('rightClick action requires coords')
           const [rx, ry] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${rx}, ${ry}]`)
-          await this.mouse.rightClick(rx, ry)
+          this.mouse.rightClick(rx, ry)
           break
         }
 
@@ -97,16 +97,16 @@ export class MotorService extends BaseService {
 
         case 'hotkey':
           if (!action.keys || action.keys.length === 0) throw new Error('hotkey action requires keys')
-          await this.keyboard.hotkey(...action.keys)
+          this.keyboard.hotkey(...action.keys)
           break
 
         case 'keyPress':
           if (!action.key) throw new Error('keyPress action requires key')
-          await this.keyboard.keyPress(action.key)
+          this.keyboard.keyPress(action.key)
           break
 
         case 'scroll':
-          await this.mouse.scroll(action.direction ?? 'down', action.amount ?? 3)
+          this.mouse.scroll(action.direction ?? 'down', action.amount ?? 3)
           break
 
         case 'runCommand': {

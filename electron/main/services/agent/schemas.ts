@@ -45,6 +45,7 @@ export const AgentActionSchema = z.object({
     'runCommand',
     'screenshot',
     'search',
+    'searchFiles',
     'wait',
     'done',
   ]).describe('The type of action to perform on the screen'),
@@ -81,9 +82,9 @@ export const AgentActionSchema = z.object({
   display: z.number().optional()
     .describe('Monitor number to capture (1-indexed, for "screenshot")'),
 
-  /** Web search query */
+  /** Search query (web search or file search) */
   query: z.string().optional()
-    .describe('Search query text (for "search" action)'),
+    .describe('Search query text (for "search" web lookup or "searchFiles" local file search)'),
 
   /** Human-readable explanation of why this action is needed */
   reason: z.string()
@@ -117,18 +118,22 @@ export const ExtractedFactsSchema = z.object({
 export type ExtractedFacts = z.infer<typeof ExtractedFactsSchema>
 
 // ═══════════════════════════════════════════════════════════════
-//  Intent Classification — structured yes/no
+//  Intent Classification — 3-way routing
 // ═══════════════════════════════════════════════════════════════
 
 /**
  * Schema for intent classification.
  *
- * Replaces the raw YES/NO text parsing with a proper boolean field.
+ * Three categories:
+ * - `chat`   — conversational, no OS interaction needed
+ * - `direct` — simple OS action executable via shell command or hotkey
+ *              (open/close/minimize/maximize apps, volume, system info, etc.)
+ * - `action` — needs screen interaction (click buttons, read screen, fill forms)
  */
 export const IntentClassificationSchema = z.object({
-  /** Whether the user's message requires screen interaction */
-  needs_action: z.boolean()
-    .describe('true if the message requires interacting with the computer screen (clicking, typing, opening apps), false for simple conversation'),
+  /** The classified intent category */
+  intent: z.enum(['chat', 'direct', 'action'])
+    .describe('chat = conversation only, direct = simple OS action via shell/hotkey (no screen needed), action = needs screen interaction (clicking, reading, GUI)'),
 })
 
 /** Inferred TypeScript type */
