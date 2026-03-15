@@ -15,8 +15,6 @@ export type DeepPartial<T> = {
 // ═══════════════════════════════════════════════════════════════
 
 export interface UIConfig {
-  /** Keep window above all others */
-  alwaysOnTop: boolean
   /** Which side of the screen the UI stack appears on */
   positionSide: 'left' | 'right' | 'center'
   /** Open DevTools automatically in dev mode */

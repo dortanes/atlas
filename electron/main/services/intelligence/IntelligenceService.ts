@@ -2,6 +2,7 @@ import { BaseService } from '@electron/services/base/BaseService'
 import { BaseLLMProvider, type LLMMessage, type GenerationConfig } from './providers/BaseLLMProvider'
 import { GeminiProvider, type StreamChunk } from './providers/GeminiProvider'
 import { OpenAIProvider } from './providers/OpenAIProvider'
+import { ContextCacheService } from './ContextCacheService'
 import { getConfig, type AppConfig } from '@electron/utils/config'
 import { mainEventBus } from '@electron/utils/eventBus'
 
@@ -18,6 +19,9 @@ export class IntelligenceService extends BaseService {
   private classifierProvider: BaseLLMProvider | null = null
   private cuProvider: GeminiProvider | null = null
   private configHandler: ((cfg: AppConfig) => void) | null = null
+  private promptHandler: ((payload: { name: string; personaId?: string }) => void) | null = null
+  private personaHandler: ((payload: { id: string }) => void) | null = null
+  private cacheService = new ContextCacheService()
 
   async init(): Promise<void> {
     // Always register config change listener — even before providers are created.
@@ -72,6 +76,23 @@ export class IntelligenceService extends BaseService {
     // Auto-detect Computer Use support from the vision model
     this.detectComputerUse(config)
 
+    // Initialize context caching (Gemini only)
+    if (config.llm.provider === 'gemini') {
+      this.cacheService.configure(config.llm.apiKey)
+    }
+
+    // Cache invalidation: on prompt save/reset
+    this.promptHandler = (payload) => {
+      this.log.info(`Prompt changed (${payload.name}) — invalidating cache`)
+      this.cacheService.invalidate(payload.personaId)
+    }
+    mainEventBus.on('prompt:saved', this.promptHandler)
+
+    // Cache invalidation: on persona switch
+    this.personaHandler = (payload) => {
+      this.log.debug(`Persona switched to ${payload.id} — cache will be refreshed on next call`)
+    }
+    mainEventBus.on('persona:switched', this.personaHandler)
   }
 
 
@@ -81,6 +102,15 @@ export class IntelligenceService extends BaseService {
       mainEventBus.removeListener('config:changed', this.configHandler)
       this.configHandler = null
     }
+    if (this.promptHandler) {
+      mainEventBus.removeListener('prompt:saved', this.promptHandler)
+      this.promptHandler = null
+    }
+    if (this.personaHandler) {
+      mainEventBus.removeListener('persona:switched', this.personaHandler)
+      this.personaHandler = null
+    }
+    await this.cacheService.dispose()
     this.textProvider = null
     this.visionProvider = null
     this.classifierProvider = null
@@ -143,6 +173,9 @@ export class IntelligenceService extends BaseService {
     // Re-detect Computer Use support
     this.cuProvider = null
     this.detectComputerUse(config)
+
+    // Reinitialize context caching (model/key may have changed → invalidate all)
+    this.cacheService.configure(config.llm.provider === 'gemini' ? config.llm.apiKey : '')
   }
 
   /** Create a provider instance by name */
@@ -197,6 +230,26 @@ export class IntelligenceService extends BaseService {
     return this.cuProvider
   }
 
+  /**
+   * Get or create a cached context for the given system prompt.
+   * Returns a cache name string to pass as `cachedContent`, or null if unavailable.
+   *
+   * @param systemInstruction — stable system prompt (no time/facts)
+   * @param personaId — active persona ID
+   * @param stableContent — stable action prompt to include in cache
+   * @param promptType — cache partition key ('chat', 'direct', 'action', 'cu')
+   */
+  async getCache(systemInstruction: string, personaId: string, stableContent?: string, promptType?: string): Promise<string | null> {
+    const config = getConfig()
+    if (config.llm.provider !== 'gemini') return null
+    return this.cacheService.getOrCreate(config.llm.textModel, systemInstruction, personaId, stableContent, promptType)
+  }
+
+  /** Invalidate cached context for a persona (or all) */
+  async invalidateCache(personaId?: string): Promise<void> {
+    return this.cacheService.invalidate(personaId)
+  }
+
   // ── Generation configs (built from AppConfig, no duplication) ──
 
   private get chatConfig(): GenerationConfig {
@@ -212,23 +265,23 @@ export class IntelligenceService extends BaseService {
   // ── Text role ──
 
   /** One-shot completion (text model) */
-  async chat(messages: LLMMessage[], config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chat(messages: LLMMessage[], config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
     if (!this.textProvider) throw new Error('No text model configured')
-    return this.textProvider.chat(messages, config ?? this.chatConfig, systemInstruction)
+    return this.textProvider.chat(messages, config ?? this.chatConfig, systemInstruction, cachedContent)
   }
 
   /** Streaming completion (text model) */
-  stream(messages: LLMMessage[], systemInstruction?: string): AsyncGenerator<string> {
+  stream(messages: LLMMessage[], systemInstruction?: string, cachedContent?: string): AsyncGenerator<string> {
     if (!this.textProvider) throw new Error('No text model configured')
-    return this.textProvider.stream(messages, this.chatConfig, systemInstruction)
+    return this.textProvider.stream(messages, this.chatConfig, systemInstruction, cachedContent)
   }
 
   /** Streaming with thinking (text model) */
-  streamWithThoughts(messages: LLMMessage[], systemInstruction?: string): AsyncGenerator<StreamChunk> {
+  streamWithThoughts(messages: LLMMessage[], systemInstruction?: string, cachedContent?: string): AsyncGenerator<StreamChunk> {
     if (!this.textProvider) throw new Error('No text model configured')
     const config = this.chatConfig
     if (this.textProvider instanceof GeminiProvider) {
-      return this.textProvider.streamWithThoughts(messages, config, systemInstruction)
+      return this.textProvider.streamWithThoughts(messages, config, systemInstruction, cachedContent)
     }
     if (this.textProvider instanceof OpenAIProvider) {
       return this.textProvider.streamWithThoughts(messages, config, systemInstruction)
@@ -251,23 +304,23 @@ export class IntelligenceService extends BaseService {
   }
 
   /** Chat with vision: conversation + screenshot (vision model) */
-  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
     if (!this.visionProvider) throw new Error('No vision model configured')
-    return this.visionProvider.chatWithVision(messages, image, config ?? this.visionConfig, systemInstruction)
+    return this.visionProvider.chatWithVision(messages, image, config ?? this.visionConfig, systemInstruction, cachedContent)
   }
 
   // ── Structured output role ──
 
   /** Structured chat: text model + JSON schema constraint */
-  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
     if (!this.textProvider) throw new Error('No text model configured')
-    return this.textProvider.chatStructured(messages, jsonSchema, config ?? this.chatConfig, systemInstruction)
+    return this.textProvider.chatStructured(messages, jsonSchema, config ?? this.chatConfig, systemInstruction, cachedContent)
   }
 
   /** Structured chat + vision: vision model + screenshot + JSON schema constraint */
-  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: import('./providers/BaseLLMProvider').GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
     if (!this.visionProvider) throw new Error('No vision model configured')
-    return this.visionProvider.chatWithVisionStructured(messages, image, jsonSchema, config ?? this.visionConfig, systemInstruction)
+    return this.visionProvider.chatWithVisionStructured(messages, image, jsonSchema, config ?? this.visionConfig, systemInstruction, cachedContent)
   }
 
   // ── Classifier role ──

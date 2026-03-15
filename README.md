@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dortanes/atlas/releases"><img src="https://img.shields.io/badge/download-v0.2.0-7c3aed?style=for-the-badge&logo=windows&logoColor=white" alt="Download" /></a>&nbsp;
+  <a href="https://github.com/dortanes/atlas/releases"><img src="https://img.shields.io/badge/download-v0.2.1-7c3aed?style=for-the-badge&logo=windows&logoColor=white" alt="Download" /></a>&nbsp;
   <a href="#-getting-started"><img src="https://img.shields.io/badge/get%20started-→-0ea5e9?style=for-the-badge" alt="Get Started" /></a>&nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-gray?style=for-the-badge" alt="License" /></a>
 </p>
@@ -25,7 +25,7 @@
 
 ---
 
-> **⚠️ Atlas is in active development (v0.2.0).**
+> **⚠️ Atlas is in active development (v0.2.1).**
 > 
 > - 🤖 **LLM support:** Gemini (including native [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use)) and OpenAI. More providers on the way.
 > - 🖥 **Screen control:** Gemini 3.x models use native [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use) for precise actions. Older models use vision-based coordinate prediction.
@@ -43,6 +43,7 @@ Think of it as a **copilot for your entire OS**.
 - 🖥 **Sees your screen** — captures what's on your display and understands the context
 - 🧠 **Thinks before it acts** — plans multi-step tasks and shows progress in real time
 - 🖱 **Controls your computer** — mouse, keyboard, and terminal — all automated
+- 🎯 **Shows what it's doing** — you can see the agent's cursor moving on screen
 - 🔍 **Searches the web** — finds answers and brings them back, no tab-switching needed
 - 📂 **Finds your files** — searches local files and folders by name, right from chat
 - 🗣 **Speaks to you** — real-time voice responses with streaming TTS
@@ -65,8 +66,11 @@ Context-aware floating panels that appear when relevant:
 - **Search Island** — web search results and local file search results
 - **Warning Island** — dismissable warnings for errors and quota issues
 
+### 🎯 Agent Cursor
+When Atlas controls your desktop, you can see its cursor moving on screen — clicking, typing, and scrolling — so you always know what's happening.
+
 ### 🖥 Computer Use
-Atlas supports the native **Gemini [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use)** — when using compatible models (Gemini 3.x), it gets pixel-perfect screen control with built-in tool calls for clicking, typing, scrolling, and navigating. Older models fall back to vision-based coordinate prediction.
+With compatible Gemini 3.x models, Atlas uses the native **[Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use)** for precise screen control — clicking, typing, scrolling, navigating, and searching — all without opening extra apps. Multi-monitor setups are supported.
 
 ### 🧩 Smart Task Planning
 Before executing complex commands, Atlas breaks them into high-level steps (2–5) and displays them in the Task Queue. You see planned steps before execution begins and watch progress as each step completes.
@@ -105,7 +109,9 @@ Enable per-request session logs to trace the full pipeline: intent classificatio
 
    > Vision model handles screen control & Computer Use. Paid tier model is more accurate but requires a billing-enabled API key.
 
-6. *(Optional)* For voice output: get an [ElevenLabs](https://elevenlabs.io/) API key → **TTS** tab → paste key + voice ID
+6. *(Optional)* For voice output:
+   - **Alice** (free, no API key): **TTS** tab → select **Alice** → done!
+   - **ElevenLabs** (premium voices): get an [ElevenLabs](https://elevenlabs.io/) API key → **TTS** tab → paste key + voice ID
 7. Press `Ctrl+Space` and start giving Atlas tasks 🎉
 
 ### Build from Source
@@ -132,14 +138,15 @@ yarn dev
 | ✅ | Screen vision + desktop automation (robotjs) |
 | ✅ | Native Gemini [Computer Use API](https://ai.google.dev/gemini-api/docs/computer-use) |
 | ✅ | Smart task planning with step-by-step progress |
-| ✅ | Streaming TTS via ElevenLabs |
+| ✅ | Agent cursor animations (click, type, scroll overlays) |
+| ✅ | Streaming TTS (ElevenLabs + Alice) |
 | ✅ | Persona system with isolated memory & custom voices |
 | ✅ | Web search + local file search |
 | ✅ | Settings UI with prompt editor + debug logging |
 | ✅ | Intent classification (direct / action / chat) |
+| ✅ | Context caching (Gemini prompt caching for token optimization) |
 | 🔜 | Voice input (wake word + STT) |
 | 🔜 | Action whitelist/blacklist & audit log |
-| 🔜 | Context caching (token optimization) |
 | 🔜 | Onboarding flow |
 | 🔜 | Auto-update |
 

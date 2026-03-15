@@ -77,7 +77,22 @@ export const audioRouter = trpcRouter({
     })
   }),
 
-  /** Subscribe to TTS audio chunks (base64-encoded mp3) */
+  /** Subscribe to TTS audio format (mpeg or opus) — emitted when speech starts */
+  onTTSFormat: publicProcedure.subscription(() => {
+    return observable<{ format: 'mpeg' | 'opus' }>((emit) => {
+      function onFormat(payload: { format: 'mpeg' | 'opus' }) {
+        emit.next(payload)
+      }
+
+      mainEventBus.on('tts:format', onFormat)
+
+      return () => {
+        mainEventBus.off('tts:format', onFormat)
+      }
+    })
+  }),
+
+  /** Subscribe to TTS audio chunks (base64-encoded) */
   onTTSAudio: publicProcedure.subscription(() => {
     return observable<{ data: string; done: boolean }>((emit) => {
       function onAudio(payload: { chunk: Buffer; done: boolean }) {

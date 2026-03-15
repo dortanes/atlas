@@ -61,7 +61,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     }
   }
 
-  async chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, _cachedContent?: string): Promise<string> {
     log.debug(`chat() with ${messages.length} message(s)`)
 
     const response = await this.client.chat.completions.create({
@@ -75,7 +75,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     return text
   }
 
-  async *stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): AsyncGenerator<string> {
+  async *stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, _cachedContent?: string): AsyncGenerator<string> {
     log.debug(`stream() with ${messages.length} message(s)`)
 
     const response = await this.client.chat.completions.create({
@@ -139,7 +139,7 @@ export class OpenAIProvider extends BaseLLMProvider {
    *
    * Attaches the image as a base64 image_url content part to the last user message.
    */
-  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string, _cachedContent?: string): Promise<string> {
     log.debug(`chatWithVision() ${messages.length} message(s), image=${image.length} bytes`)
 
     const sysMessages: OpenAI.Chat.ChatCompletionMessageParam[] = systemInstruction
@@ -193,7 +193,7 @@ export class OpenAIProvider extends BaseLLMProvider {
    * @param systemInstruction — optional system prompt
    * @returns Raw JSON string
    */
-  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, _cachedContent?: string): Promise<string> {
     log.debug(`chatStructured() with ${messages.length} message(s)`)
 
     const response = await this.client.chat.completions.create({
@@ -221,7 +221,7 @@ export class OpenAIProvider extends BaseLLMProvider {
    * Attaches the image to the last user message and constrains
    * the response to the provided JSON schema.
    */
-  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
+  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, _cachedContent?: string): Promise<string> {
     log.debug(`chatWithVisionStructured() ${messages.length} message(s), image=${image.length} bytes`)
 
     const sysMessages: OpenAI.Chat.ChatCompletionMessageParam[] = systemInstruction

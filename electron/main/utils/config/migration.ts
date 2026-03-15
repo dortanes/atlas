@@ -30,7 +30,6 @@ const FLAT_TO_NESTED: Record<string, [string, string]> = {
   ttsVoiceId:        ['tts', 'voiceId'],
   ttsModel:          ['tts', 'model'],
   ttsEnabled:        ['tts', 'enabled'],
-  alwaysOnTop:       ['ui', 'alwaysOnTop'],
   positionSide:      ['ui', 'positionSide'],
   openDevTools:      ['ui', 'openDevTools'],
   logLevel:          ['ui', 'logLevel'],

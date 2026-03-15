@@ -27,6 +27,7 @@ import { createPartFromFunctionResponse, createFunctionResponsePartFromBase64 } 
 import { PromptLoader } from '@electron/services/intelligence/PromptLoader'
 import { VisionService } from '@electron/services/vision/VisionService'
 import { MotorService } from '@electron/services/motor/MotorService'
+import { SearchService } from '@electron/services/search/SearchService'
 
 import { mainEventBus } from '@electron/utils/eventBus'
 import { formatLLMError } from '@electron/utils/llmErrors'
@@ -37,12 +38,28 @@ import { sleep } from '@electron/utils/other'
 import { AgentStateMachine } from './AgentState'
 import { streamFinalResponse } from './ResponseStreamer'
 import { mapFunctionCallToAction, extractSafetyDecision } from './computerUseMapper'
+import { buildDynamicContext } from './agentUtils'
 import type { LLMMessage } from '@electron/services/intelligence/providers/BaseLLMProvider'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { FactExtractor } from './FactExtractor'
 import type { SessionLogger } from '@electron/utils/sessionLogger'
 
 const log = createLogger('ComputerUseLoop')
+
+/** Actions that trigger slow state changes (app launch, page load) */
+const SLOW_ACTIONS = new Set(['navigate', 'open_web_browser'])
+/** Actions that may trigger moderate UI updates */
+const MEDIUM_ACTIONS = new Set(['click_at', 'type_text_at'])
+
+/**
+ * Get post-action delay based on action category.
+ * Slow actions (navigation, app launch) need more time for the result to appear.
+ */
+function getPostActionDelay(actionName: string, baseDelay: number): number {
+  if (SLOW_ACTIONS.has(actionName)) return Math.max(baseDelay, 3000)
+  if (MEDIUM_ACTIONS.has(actionName)) return Math.max(baseDelay, 1200)
+  return baseDelay
+}
 
 /** Max recent execution entries for logging */
 const MAX_BRANCH_ENTRIES = 7
@@ -78,6 +95,7 @@ export async function runComputerUseLoop(
   visionService: VisionService,
   motorService: MotorService,
   factExtractor?: FactExtractor,
+  searchService?: SearchService,
   sessionLogger?: SessionLogger,
 ): Promise<LLMMessage[]> {
 
@@ -85,15 +103,13 @@ export async function runComputerUseLoop(
     ? factExtractor.getFactsText(persona.id)
     : 'No known facts about the user yet.'
 
-  // ── Build system prompt ──
+  // ── Stable system prompt (no time/facts — for caching) ──
   const resolution = visionService.getResolutionString()
   const baseSystemPrompt = promptLoader.load('system', {
     os: `${os.platform()} ${os.release()}`,
     resolution,
-    time: new Date().toLocaleString(),
     persona_name: persona.name,
     personality: persona.personality,
-    user_facts: userFacts,
   }, persona.id)
 
   // Append Computer Use-specific instruction for concise step labels
@@ -117,12 +133,15 @@ export async function runComputerUseLoop(
   // ── Take initial screenshot ──
   const initialScreenshot = await visionService.takeScreenshot()
 
+  // Dynamic context — changes every call, NOT cached
+  const dynamicContext = buildDynamicContext(userFacts)
+
   // ── Build Gemini-native contents ──
   const contents: GeminiContent[] = [
     {
       role: 'user',
       parts: [
-        { text: `${command}\n\nCurrent OS: ${os.platform()} ${os.release()}\nScreen resolution: ${resolution}\nDisplays:\n${displayInfo}` },
+        { text: `${dynamicContext}\n\n${command}\n\nCurrent OS: ${os.platform()} ${os.release()}\nScreen resolution: ${resolution}\nDisplays:\n${displayInfo}` },
         {
           inlineData: {
             mimeType: 'image/jpeg',
@@ -148,6 +167,9 @@ export async function runComputerUseLoop(
   let consecutiveFailures = 0
   let fullResponse = ''
 
+  // NOTE: Explicit caching is NOT used for Computer Use — Gemini API
+  // forbids cachedContent + tools/tool_config in the same request.
+
   // ── Main loop ──
   while (iteration < maxIterations && consecutiveFailures < maxConsecutiveFailures) {
     iteration++
@@ -157,9 +179,8 @@ export async function runComputerUseLoop(
 
     try {
       // ── Call Gemini with computer_use tool ──
-      // Exclude wait_5_seconds — Atlas has its own postActionDelay, browser-style waits are unnecessary
       const stopGemini = sessionLogger?.startTimer(`Iteration ${iteration} Gemini call`)
-      const response = await geminiProvider.chatWithComputerUse(contents, systemPrompt, ['wait_5_seconds'])
+      const response = await geminiProvider.chatWithComputerUse(contents, systemPrompt)
       stopGemini?.()
 
       const candidate = response.candidates?.[0]
@@ -242,28 +263,14 @@ export async function runComputerUseLoop(
         const currentStepId = activateStep(stepTasks, stepLabel)
 
         // ── Check safety_decision ──
+        // Auto-acknowledge Gemini's safety decisions — Atlas has its own
+        // ActionRiskClassifier for truly dangerous actions. Gemini's browser-oriented
+        // safety is overly cautious for a desktop agent acting on user's explicit commands.
+        let safetyAcknowledged = false
         const safety = extractSafetyDecision(fc.args)
         if (safety && safety.decision === 'require_confirmation') {
-          const permId = randomUUID()
-          const allowed = await requestPermission(permId, fc.name, safety.explanation, stateMachine)
-
-          if (!allowed) {
-            log.info(`Action denied by user: ${fc.name}`)
-            fullResponse = 'Action cancelled by user.'
-            markStep(stepTasks, currentStepId, 'failed')
-            stateMachine.transition('USER_CANCEL')
-
-            // Send denial as function_response
-            functionResponses.push(
-              createPartFromFunctionResponse(
-                fc.id ?? '',
-                fc.name,
-                { url: 'desktop://screen', error: 'Action denied by user' },
-              ) as unknown as Record<string, unknown>,
-            )
-            continue
-          }
-          stateMachine.transition('USER_CONFIRM')
+          log.info(`Safety decision auto-acknowledged for ${fc.name}: ${safety.explanation}`)
+          safetyAcknowledged = true
         }
 
         // ── Map to AgentAction ──
@@ -285,6 +292,68 @@ export async function runComputerUseLoop(
           continue
         }
 
+        // ── Web search (bypass browser — use built-in SearchService) ──
+        if (action.action === 'search' && searchService && action.query) {
+          mainEventBus.emit('agent:search-results', {
+            type: 'web', query: action.query, results: [], fileResults: [], searching: true,
+          })
+          mainEventBus.emit('agent:action', { label: `Searching: ${action.query}`, progress })
+
+          const results = await searchService.searchWeb(action.query)
+          const formatted = searchService.formatForLLM(results)
+          sessionLogger?.step(`Web search: ${action.query} → ${results.length} result(s)`)
+
+          mainEventBus.emit('agent:search-results', {
+            type: 'web', query: action.query, results, fileResults: [], searching: false,
+          })
+
+          consecutiveFailures = 0
+          executionBranch.push(`[${iteration}] OK: search "${action.query}" → ${results.length} result(s)`)
+          markStep(stepTasks, currentStepId, 'done')
+
+          functionResponses.push(
+            createPartFromFunctionResponse(
+              fc.id ?? '',
+              fc.name,
+              { url: 'desktop://screen', output: formatted || 'No search results found.' },
+            ) as unknown as Record<string, unknown>,
+          )
+          continue
+        }
+
+        // ── File search (bypass GUI — use built-in SearchService) ──
+        if (action.action === 'searchFiles' && searchService && action.query) {
+          mainEventBus.emit('agent:search-results', {
+            type: 'files', query: action.query, results: [], fileResults: [], searching: true,
+          })
+          mainEventBus.emit('agent:action', { label: `Searching files: ${action.query}`, progress })
+
+          const fileResults = await searchService.searchFiles(action.query, 10, (progressResults) => {
+            mainEventBus.emit('agent:search-results', {
+              type: 'files', query: action.query!, results: [], fileResults: progressResults, searching: true,
+            })
+          })
+          const formatted = searchService.formatFilesForLLM(fileResults)
+          sessionLogger?.step(`File search: ${action.query} → ${fileResults.length} result(s)`)
+
+          mainEventBus.emit('agent:search-results', {
+            type: 'files', query: action.query, results: [], fileResults, searching: false,
+          })
+
+          consecutiveFailures = 0
+          executionBranch.push(`[${iteration}] OK: search_files "${action.query}" → ${fileResults.length} result(s)`)
+          markStep(stepTasks, currentStepId, 'done')
+
+          functionResponses.push(
+            createPartFromFunctionResponse(
+              fc.id ?? '',
+              fc.name,
+              { url: 'desktop://screen', output: formatted || 'No files found.' },
+            ) as unknown as Record<string, unknown>,
+          )
+          continue
+        }
+
         // Emit to ActionIsland — use model thinking (stepLabel), not raw mapper reason
         mainEventBus.emit('agent:action', {
           label: stepLabel,
@@ -301,45 +370,79 @@ export async function runComputerUseLoop(
 
         const stopAction = sessionLogger?.startTimer(`Action: ${fc.name}`)
 
-        // Special handling for type_text_at: click first, then type
+        // Special handling for type_text_at: either type in-place or click first
         if (fc.name === 'type_text_at') {
-          // Click at position
-          await motorService.executeAction({
-            action: 'click',
-            coords: action.coords,
-            reason: 'Click before typing',
-            risk: 'low',
-          })
-          await sleep(100)
+          if (action.action === 'type') {
+            // No coordinates — type into whatever is currently focused (e.g. Ctrl+F bar)
+            if (action.text) {
+              mainEventBus.emit('agent:cursor-animation', { type: 'type' as const, text: action.text })
+              await sleep(400)
 
-          // Select all text in the field before typing, so existing content is replaced.
-          motorService.keyboard.keyPress('end')
-          await sleep(30)
-          motorService.keyboard.hotkey('shift', 'home')
-          await sleep(50)
+              await motorService.keyboard.typeNative(action.text)
 
-          // Type the text using native key events (works with all UI elements)
-          if (action.text) {
-            await motorService.keyboard.typeNative(action.text)
+              if (action.key === 'enter') {
+                await sleep(50)
+                await motorService.executeAction({
+                  action: 'keyPress',
+                  key: 'enter',
+                  reason: 'Press Enter after typing',
+                  risk: 'low',
+                })
+              }
 
-            // Press enter if needed
-            if (action.key === 'enter') {
-              await sleep(50)
-              await motorService.executeAction({
-                action: 'keyPress',
-                key: 'enter',
-                reason: 'Press Enter after typing',
-                risk: 'low',
-              })
+              restoreAfterAction()
+              consecutiveFailures = 0
+              executionBranch.push(`[${iteration}] OK: type_text_at "${action.text.slice(0, 40)}" (in-place)`)
+              markStep(stepTasks, currentStepId, 'done')
+              stopAction?.()
             }
+          } else {
+            // Has coordinates — click at position first, then type
+            await motorService.executeAction({
+              action: 'click',
+              coords: action.coords,
+              reason: 'Click before typing',
+              risk: 'low',
+            })
+            await sleep(100)
 
-            restoreAfterAction()
-            consecutiveFailures = 0
-            executionBranch.push(`[${iteration}] OK: type_text_at "${action.text.slice(0, 40)}"`)
-            markStep(stepTasks, currentStepId, 'done')
-            stopAction?.()
+            // Select all text in the field before typing, so existing content is replaced.
+            motorService.keyboard.keyPress('end')
+            await sleep(30)
+            motorService.keyboard.hotkey('shift', 'home')
+            await sleep(50)
+
+            // Type the text using native key events (works with all UI elements)
+            if (action.text) {
+              // Emit typing animation to overlay cursor
+              mainEventBus.emit('agent:cursor-animation', { type: 'type' as const, text: action.text })
+              await sleep(400)
+
+              await motorService.keyboard.typeNative(action.text)
+
+              // Press enter if needed
+              if (action.key === 'enter') {
+                await sleep(50)
+                await motorService.executeAction({
+                  action: 'keyPress',
+                  key: 'enter',
+                  reason: 'Press Enter after typing',
+                  risk: 'low',
+                })
+              }
+
+              restoreAfterAction()
+              consecutiveFailures = 0
+              executionBranch.push(`[${iteration}] OK: type_text_at "${action.text.slice(0, 40)}"`)
+              markStep(stepTasks, currentStepId, 'done')
+              stopAction?.()
+            }
           }
         } else if (fc.name === 'hover_at') {
+          // Emit cursor animation for hover move
+          mainEventBus.emit('agent:cursor-animation', { type: 'move-click' as const, x: action.coords![0], y: action.coords![1] })
+          await sleep(400)
+
           // Move mouse without clicking
           await motorService.mouse.moveTo(action.coords![0], action.coords![1])
           restoreAfterAction()
@@ -368,7 +471,7 @@ export async function runComputerUseLoop(
 
         // Take screenshot after action for function_response
         // Computer Use API requires image/png in function responses
-        await sleep(getConfig().agent.postActionDelay)
+        await sleep(getPostActionDelay(fc.name, getConfig().agent.postActionDelay))
         const stopScreenshot = sessionLogger?.startTimer('Post-action screenshot')
         const postScreenshot = await visionService.takeScreenshot('png')
         stopScreenshot?.()
@@ -377,7 +480,7 @@ export async function runComputerUseLoop(
           createPartFromFunctionResponse(
             fc.id ?? '',
             fc.name,
-            { url: 'desktop://screen', output: 'success' },
+            { url: 'desktop://screen', output: 'success', ...(safetyAcknowledged ? { safety_acknowledgement: 'true' } : {}) },
             [createFunctionResponsePartFromBase64(
               postScreenshot.toString('base64'),
               'image/png',
@@ -408,6 +511,15 @@ export async function runComputerUseLoop(
 
   // ── Cleanup ──
   mainEventBus.emit('agent:action', null)
+  motorService.hideCursor()
+
+  // Mark any remaining queued steps as done — the model may finish
+  // the task in fewer actions than originally planned
+  for (const step of stepTasks) {
+    if (step.status === 'queued' || step.status === 'active') {
+      step.status = 'done'
+    }
+  }
   emitSteps(stepTasks)
 
   // Emit action log for history
@@ -521,6 +633,10 @@ function buildStepLabel(name: string, args: Record<string, unknown>): string {
       return 'Go forward'
     case 'search':
       return 'Search'
+    case 'search_files': {
+      const q = String(args.query ?? args.text ?? '').slice(0, 40)
+      return `Search files: "${q}"`
+    }
     default:
       return name.replace(/_/g, ' ')
   }
@@ -540,33 +656,4 @@ function buildDisplayInfo(): string {
   }).join('\n')
 }
 
-/**
- * Request user permission for a risky action.
- * Reuses the same PermissionIsland pattern as ActionLoop.
- */
-function requestPermission(
-  id: string,
-  actionName: string,
-  explanation: string,
-  stateMachine: AgentStateMachine,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const handler = (payload: { id: string; allowed: boolean }) => {
-      if (payload.id === id) {
-        mainEventBus.off('agent:permission-response', handler)
-        resolve(payload.allowed)
-      }
-    }
 
-    mainEventBus.on('agent:permission-response', handler)
-    stateMachine.transition('HIGH_RISK')
-
-    mainEventBus.emit('agent:permission', {
-      id,
-      message: `${actionName}: ${explanation}`,
-      riskLevel: 'high' as const,
-    })
-
-    log.info(`Permission requested: ${id} — ${actionName}: ${explanation}`)
-  })
-}

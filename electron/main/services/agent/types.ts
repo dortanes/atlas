@@ -14,6 +14,7 @@ export type ActionType =
   | 'keyPress'
   | 'scroll'
   | 'runCommand'
+  | 'navigate'
   | 'screenshot'
   | 'search'
   | 'searchFiles'
@@ -36,6 +37,7 @@ export interface AgentAction {
   keys?: string[]                  // for hotkey (e.g. ["ctrl", "c"])
   key?: string                     // for keyPress (e.g. "enter")
   command?: string                 // for runCommand (PowerShell command)
+  url?: string                     // for navigate (URL to open in current window)
   direction?: 'up' | 'down'       // for scroll
   amount?: number                  // for scroll (lines) or wait (ms)
   display?: number                 // for screenshot — monitor number (1-indexed from Display Setup)
@@ -53,5 +55,4 @@ export interface ActionResult {
   error?: string
   output?: string                  // stdout/stderr from runCommand
 }
-
 

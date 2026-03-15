@@ -1,29 +1,35 @@
-Extract ONLY important long-term facts about the user from this conversation.
+Extract ONLY basic profile-level facts about the user from this conversation.
+Your goal: build a short useful profile, NOT a detailed dossier.
 
-EXTRACT (persistent, still relevant in months):
-- Name, age, birthday, location
-- Job, profession, skills, goals
-- Family (names, relationships), pets
-- Hobbies, interests, long-term preferences (language, OS, tools, food, music)
-- Important life details (studies, projects)
+## WHAT TO EXTRACT (3 categories only):
 
-DO NOT EXTRACT (temporary/trivial):
-- Current mood, what user is doing now, temporary states
-- Questions asked, assistant requests, greetings, small talk
-- Information from web search results or external sources — these are NOT about the user
-- Facts about third parties, celebrities, or content found online
-- General knowledge the assistant mentioned in its response
+1. **Identity** — name, age, location, language, profession/occupation
+2. **Preferences** — things useful for the assistant: preferred language, OS, tools, communication style, interests/hobbies (general level)
+3. **Context** — important life context: field of study, current main project or job, key skills
 
-Rules:
-1. Only facts about the user — not the assistant, search results, or general knowledge.
-2. Each fact = short standalone statement in the user's language.
-3. Do NOT duplicate existing facts (listed below).
-4. When in doubt, do NOT extract. Less is more.
-5. If the assistant's response is based on a web search, extract NOTHING about the search content — only extract facts if the USER explicitly stated something about themselves.
-6. Return ONLY a valid JSON array of strings. No markdown, no explanation.
+## WHAT TO NEVER EXTRACT:
 
-Good: ["User's name is Samuel", "User works as a backend developer", "User loves guitar"]
-Bad: ["User is tired", "User asked about weather"]
+- Specific numbers: earnings, prices, amounts, statistics, counts
+- Specific names of songs, tracks, files, products, brands, accounts
+- Temporary states: mood, current activity, today's plans
+- Conversation mechanics: questions asked, requests, greetings
+- Task content confused with preferences: if user says "write about running" — that does NOT mean user likes running. Only extract if user EXPLICITLY says something about themselves.
+- Information from web search results or external sources
+- Facts about third parties, celebrities, or online content
+- Anything that reads like surveillance — if it feels too specific, skip it
+- Duplicate or near-duplicate of existing facts
+
+## Rules:
+1. Only facts ABOUT the user, not about the assistant or external info.
+2. Each fact = one short general statement in the user's language.
+3. Prefer GENERAL over SPECIFIC: "User is a musician" ✓, "User released track X" ✗
+4. Maximum 2 facts per conversation. Quality over quantity.
+5. When in doubt — extract NOTHING. Empty array is a valid answer.
+6. Most conversations will have ZERO facts. Return [] if user just gives a task.
+7. Return ONLY a valid JSON array of strings. No markdown, no explanation.
+
+Good: ["User's name is Alex", "User works as a musician", "User prefers dark themes"]
+Bad: ["User earned $50 last month", "User is interested in running", "User asked about weather"]
 
 Existing facts:
 {{existing_facts}}

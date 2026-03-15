@@ -39,6 +39,7 @@ import { AgentStateMachine } from './AgentState'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { FactExtractor } from './FactExtractor'
 import type { SessionLogger } from '@electron/utils/sessionLogger'
+import { buildDynamicContext } from './agentUtils'
 
 const log = createLogger('DirectActionLoop')
 
@@ -51,7 +52,7 @@ const DirectActionSchema = z.object({
   query: z.string().optional(),
   text: z.string().optional(),
   reason: z.string().describe('Technical reason for logging'),
-  response: z.string().describe('Natural human reply to the user in their language, e.g. "Done!" or "Volume lowered"'),
+  response: z.string().describe('Natural human reply to the user in the SAME LANGUAGE as their command'),
   risk: z.enum(['low', 'medium', 'high', 'critical']).optional(),
 })
 
@@ -88,22 +89,23 @@ export async function runDirectAction(
     ? factExtractor.getFactsText(persona.id)
     : 'No known facts about the user yet.'
 
-  // ── System prompt ──
+  // ── Stable system prompt (no time/facts — for caching) ──
   const systemPrompt = promptLoader.load('system', {
     os: `${os.platform()} ${os.release()}`,
     resolution: 'N/A (direct mode — no screen interaction)',
-    time: new Date().toLocaleString(),
     persona_name: persona.name,
     personality: persona.personality,
-    user_facts: userFacts,
   }, persona.id)
 
-  // ── Direct action prompt ──
+  // ── Direct action prompt (stable — cacheable) ──
   const directPrompt = promptLoader.load('direct_action', {}, persona.id)
+
+  // Dynamic context — changes every call, NOT cached
+  const dynamicContext = buildDynamicContext(userFacts)
 
   const messages: LLMMessage[] = [
     ...history,
-    { role: 'user', text: `${directPrompt}\n\nUser command: ${command}` },
+    { role: 'user', text: `${dynamicContext}\n\n${directPrompt}\n\nUser command: ${command}` },
   ]
 
   stateMachine.transition('LLM_RESPONDING')
@@ -111,6 +113,9 @@ export async function runDirectAction(
   let fullResponse = ''
 
   try {
+    // Cache system prompt + direct_action prompt for token savings
+    const cachedContent = await intelligence.getCache(systemPrompt, persona.id, directPrompt, 'direct').catch(() => null)
+
     // Single LLM call — structured output for guaranteed JSON
     const stopLLM = sessionLogger?.startTimer('LLM call')
     const llmResponse = await intelligence.chatStructured(
@@ -118,6 +123,7 @@ export async function runDirectAction(
       directActionJsonSchema,
       undefined,
       systemPrompt,
+      cachedContent ?? undefined,
     )
     stopLLM?.()
 
@@ -129,7 +135,7 @@ export async function runDirectAction(
     // ── needsVision fallback ──
     if (action.action === 'needsVision') {
       log.info(`Direct mode fallback to vision: ${action.reason}`)
-      stateMachine.transition('TASK_DONE')
+      // Don't transition to TASK_DONE — the vision loop will manage state
       return {
         history,
         needsVision: true,
@@ -269,6 +275,17 @@ export async function runDirectAction(
       }
     }
 
+    // ── Intercept SendKeys text input → redirect to vision ──
+    else if (isSendKeysTextCommand(action)) {
+      log.warn(`Blocked SendKeys text input in runCommand: ${action.command?.slice(0, 100)}`)
+      sessionLogger?.step('Blocked SendKeys text input → redirecting to needsVision')
+      // Don't transition to TASK_DONE — the vision loop will manage state
+      return {
+        history,
+        needsVision: true,
+      }
+    }
+
     // ── Execute action (runCommand / hotkey / keyPress) ──
     else {
       mainEventBus.emit('agent:action', {
@@ -320,8 +337,28 @@ export async function runDirectAction(
 
       if (!result.success) {
         log.error(`Direct action failed: ${result.error}`)
-        // User sees the natural response, not raw errors
-        fullResponse = action.response || `Sorry, I couldn't do that.`
+        // Ask LLM to explain the failure to the user in natural language.
+        // The pre-generated `action.response` assumed success, so we can't use it.
+        try {
+          const errorMessages: LLMMessage[] = [
+            ...history,
+            { role: 'user', text: command },
+            {
+              role: 'model',
+              text: `I tried to execute: ${action.command || action.keys?.join('+') || action.key || action.action}\nBut it failed with this error:\n${result.error}`,
+            },
+            {
+              role: 'user',
+              text: 'Explain what went wrong in 1-2 sentences. Be concise and helpful. Suggest a fix if obvious.',
+            },
+          ]
+          const stopSummary = sessionLogger?.startTimer('Error explanation LLM call')
+          fullResponse = await intelligence.chat(errorMessages, undefined, systemPrompt)
+          stopSummary?.()
+          sessionLogger?.step(`Error response: "${fullResponse.slice(0, 120)}"`)
+        } catch {
+          fullResponse = `Failed to execute: ${result.error?.split('\n')[0] ?? 'Unknown error'}`
+        }
       } else {
         fullResponse = action.response || action.text || 'Done.'
         log.info(`Direct action OK: ${action.reason}`)
@@ -341,6 +378,7 @@ export async function runDirectAction(
 
   // ── Cleanup ──
   mainEventBus.emit('agent:action', null)
+  motorService.hideCursor()
 
   if (fullResponse.trim()) {
     const stopStream = sessionLogger?.startTimer('Response streaming')
@@ -410,6 +448,30 @@ function isFileSearchCommand(action: DirectAction): boolean {
     (cmd.includes('get-childitem') || cmd.includes('gci ') || cmd.includes('dir ') || cmd.includes('ls ')) &&
     (cmd.includes('-recurse') || cmd.includes('-filter') || cmd.includes('-include'))
   )
+}
+
+/**
+ * Detect if a `runCommand` action uses SendKeys to type/insert text.
+ *
+ * The LLM sometimes ignores prompt rules and uses WScript.Shell.SendKeys
+ * to type text into applications. This causes garbled output because
+ * SendKeys doesn't handle Cyrillic and special characters properly.
+ * Intercept and redirect to needsVision so robotjs handles the typing.
+ *
+ * Allows single-char media keys like SendKeys([char]173) for volume control.
+ */
+function isSendKeysTextCommand(action: DirectAction): boolean {
+  if (action.action !== 'runCommand' || !action.command) return false
+  const cmd = action.command.toLowerCase()
+
+  // Must contain sendkeys
+  if (!cmd.includes('sendkeys')) return false
+
+  // Allow volume/media keys: SendKeys([char]NNN) — single character codes
+  if (/sendkeys\(\[char\]\d+\)/.test(cmd)) return false
+
+  // Everything else using SendKeys is blocked (text strings, etc.)
+  return true
 }
 
 /**

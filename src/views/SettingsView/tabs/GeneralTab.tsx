@@ -3,7 +3,7 @@ import { api } from '@/api'
 import type { AppConfig } from '@/composables/useSettings'
 
 /**
- * GeneralTab — UI settings: position, log level, alwaysOnTop, devTools, debugLog.
+ * GeneralTab — UI settings: position, log level, devTools, debugLog.
  */
 export default defineComponent({
   name: 'GeneralTab',
@@ -48,16 +48,6 @@ export default defineComponent({
             <option value="warn">Warn</option>
             <option value="error">Error</option>
           </select>
-        </label>
-
-        <label class="settings-field settings-field--row">
-          <span class="settings-field__label">Always on Top</span>
-          <input
-            type="checkbox"
-            class="settings-field__toggle"
-            checked={ui.alwaysOnTop}
-            onChange={(e: Event) => { ui.alwaysOnTop = (e.target as HTMLInputElement).checked }}
-          />
         </label>
 
         <label class="settings-field settings-field--row">

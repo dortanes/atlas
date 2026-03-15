@@ -33,7 +33,7 @@ export abstract class BaseLLMProvider {
    *
    * @param systemInstruction — native system prompt (saves tokens vs fake user/model pairs)
    */
-  abstract chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): Promise<string>
+  abstract chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string>
 
   /**
    * Streaming completion: yields text chunks as they arrive.
@@ -41,7 +41,7 @@ export abstract class BaseLLMProvider {
    *
    * @param systemInstruction — native system prompt
    */
-  abstract stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): AsyncGenerator<string>
+  abstract stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): AsyncGenerator<string>
 
   /**
    * Vision: send an image + text prompt, get a text response.
@@ -57,7 +57,7 @@ export abstract class BaseLLMProvider {
    * @param image — screenshot PNG buffer to attach to the LAST user message
    * @param systemInstruction — native system prompt
    */
-  abstract chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string): Promise<string>
+  abstract chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string>
 
   /**
    * Structured output: send messages, get response constrained to a JSON schema.
@@ -70,7 +70,7 @@ export abstract class BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt
    */
-  abstract chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string>
+  abstract chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string>
 
   /**
    * Chat with vision + structured output: conversation + screenshot + JSON schema constraint.
@@ -84,5 +84,5 @@ export abstract class BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt
    */
-  abstract chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string>
+  abstract chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string>
 }

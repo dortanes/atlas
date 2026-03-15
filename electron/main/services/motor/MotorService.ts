@@ -2,6 +2,7 @@ import { BaseService } from '@electron/services/base/BaseService'
 import { MouseController } from './MouseController'
 import { KeyboardController } from './KeyboardController'
 import { ShellController } from './ShellController'
+import { mainEventBus } from '@electron/utils/eventBus'
 import type { AgentAction, ActionResult } from '@electron/services/agent/types'
 
 /**
@@ -12,6 +13,9 @@ import type { AgentAction, ActionResult } from '@electron/services/agent/types'
  *
  * Handles coordinate rescaling: LLM returns coords in screenshot space
  * (e.g. 1280px wide), and we scale them to actual screen space (e.g. 2560px).
+ *
+ * Emits `agent:cursor-animation` events so the renderer overlay can show
+ * an animated cursor before the real action happens.
  */
 export class MotorService extends BaseService {
   readonly mouse = new MouseController()
@@ -25,6 +29,9 @@ export class MotorService extends BaseService {
   /** Screenshot width the LLM sees (after ScreenCapture resize). */
   private screenshotWidth = 1280
   private screenshotHeight = 720
+
+  /** How long to wait for cursor animation before real action (ms) */
+  private static readonly CURSOR_ANIM_MS = 400
 
   async init(): Promise<void> {
     this.log.info('MotorService initialized')
@@ -56,6 +63,22 @@ export class MotorService extends BaseService {
   }
 
   /**
+   * Emit a cursor animation event and wait for the animation to play.
+   */
+  private async emitCursorAnimation(payload: {
+    type: 'move-click' | 'move-doubleClick' | 'move-rightClick' | 'type' | 'scroll' | 'hide'
+    x?: number
+    y?: number
+    text?: string
+    direction?: 'up' | 'down'
+  }): Promise<void> {
+    mainEventBus.emit('agent:cursor-animation', payload)
+    if (payload.type !== 'hide') {
+      await this.sleep(MotorService.CURSOR_ANIM_MS)
+    }
+  }
+
+  /**
    * Execute a single agent action.
    *
    * Routes the action to the correct controller based on action type.
@@ -70,6 +93,7 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('click action requires coords')
           const [cx, cy] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${cx}, ${cy}]`)
+          await this.emitCursorAnimation({ type: 'move-click', x: cx, y: cy })
           this.mouse.click(cx, cy)
           break
         }
@@ -78,6 +102,7 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('doubleClick action requires coords')
           const [dx, dy] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${dx}, ${dy}]`)
+          await this.emitCursorAnimation({ type: 'move-doubleClick', x: dx, y: dy })
           this.mouse.doubleClick(dx, dy)
           break
         }
@@ -86,12 +111,14 @@ export class MotorService extends BaseService {
           if (!action.coords) throw new Error('rightClick action requires coords')
           const [rx, ry] = this.scaleCoords(action.coords[0], action.coords[1])
           this.log.debug(`LLM coords: [${action.coords[0]}, ${action.coords[1]}] → screen: [${rx}, ${ry}]`)
+          await this.emitCursorAnimation({ type: 'move-rightClick', x: rx, y: ry })
           this.mouse.rightClick(rx, ry)
           break
         }
 
         case 'type':
           if (!action.text) throw new Error('type action requires text')
+          await this.emitCursorAnimation({ type: 'type', text: action.text })
           await this.keyboard.type(action.text)
           break
 
@@ -106,6 +133,7 @@ export class MotorService extends BaseService {
           break
 
         case 'scroll':
+          await this.emitCursorAnimation({ type: 'scroll', direction: action.direction ?? 'down' })
           this.mouse.scroll(action.direction ?? 'down', action.amount ?? 3)
           break
 
@@ -118,6 +146,16 @@ export class MotorService extends BaseService {
             error: shellResult.exitCode !== 0 ? (shellResult.stderr || shellResult.stdout) : undefined,
             output: shellResult.stdout || shellResult.stderr,
           }
+        }
+
+        case 'navigate': {
+          if (!action.url) throw new Error('navigate action requires url')
+          this.keyboard.hotkey('control', 'l')
+          await this.sleep(200)
+          await this.keyboard.typeNative(action.url)
+          await this.sleep(100)
+          this.keyboard.keyPress('enter')
+          break
         }
 
         case 'wait':
@@ -142,7 +180,17 @@ export class MotorService extends BaseService {
     }
   }
 
+  /**
+   * Hide the cursor overlay (call when action loop finishes).
+   */
+  hideCursor(): void {
+    mainEventBus.emit('agent:cursor-animation', { type: 'hide' })
+  }
+
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
+
+
+

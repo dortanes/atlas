@@ -53,10 +53,27 @@ export function mapFunctionCallToAction(
     }
 
     case 'type_text_at': {
-      const x = denormalize(Number(args.x ?? 0), screen.width)
-      const y = denormalize(Number(args.y ?? 0), screen.height)
+      const rawX = args.x != null ? Number(args.x) : null
+      const rawY = args.y != null ? Number(args.y) : null
       const text = String(args.text ?? '')
       const pressEnter = Boolean(args.press_enter)
+
+      // If model didn't provide coordinates (or sent 0,0), don't click —
+      // just type into whatever is currently focused (e.g. Ctrl+F search bar)
+      const hasCoords = rawX != null && rawY != null && (rawX > 0 || rawY > 0)
+
+      if (!hasCoords) {
+        return {
+          action: 'type',
+          text,
+          reason: `Type "${text.slice(0, 40)}${text.length > 40 ? '...' : ''}"${pressEnter ? ' + Enter' : ''}`,
+          risk: 'low',
+          key: pressEnter ? 'enter' : undefined,
+        }
+      }
+
+      const x = denormalize(rawX!, screen.width)
+      const y = denormalize(rawY!, screen.height)
       // Build a compound action — click at location first, then type
       // We return the click action; the loop will handle type separately
       return {
@@ -101,7 +118,7 @@ export function mapFunctionCallToAction(
       return {
         action: 'scroll',
         direction,
-        amount: Math.round(magnitude / 100) || 3, // Convert Gemini magnitude (px) to lines
+        amount: magnitude, // Gemini magnitude — passed directly to MouseController
         coords: [x, y],
         reason: `Scroll ${direction} at (${x}, ${y})`,
         risk: 'low',
@@ -110,10 +127,11 @@ export function mapFunctionCallToAction(
 
     case 'scroll_document': {
       const direction = String(args.direction ?? 'down') as 'up' | 'down'
+      const magnitude = Number(args.magnitude ?? 5)
       return {
         action: 'scroll',
         direction,
-        amount: 5,
+        amount: magnitude,
         reason: `Scroll document ${direction}`,
         risk: 'low',
       }
@@ -144,8 +162,8 @@ export function mapFunctionCallToAction(
     case 'navigate': {
       const url = String(args.url ?? 'https://www.google.com')
       return {
-        action: 'runCommand',
-        command: `Start-Process "${url}"`,
+        action: 'navigate',
+        url,
         reason: `Navigate to ${url}`,
         risk: 'low',
       }
@@ -170,11 +188,11 @@ export function mapFunctionCallToAction(
     }
 
     case 'search': {
-      // Open browser address bar and search
+      const query = String(args.query ?? args.text ?? '')
       return {
-        action: 'hotkey',
-        keys: ['ctrl', 'l'],
-        reason: 'Focus browser address bar (search)',
+        action: 'search',
+        query,
+        reason: `Web search: ${query}`,
         risk: 'low',
       }
     }
@@ -184,6 +202,16 @@ export function mapFunctionCallToAction(
         action: 'wait',
         amount: 5000,
         reason: 'Wait 5 seconds',
+        risk: 'low',
+      }
+    }
+
+    case 'search_files': {
+      const query = String(args.query ?? args.text ?? '')
+      return {
+        action: 'searchFiles',
+        query,
+        reason: `Search files: ${query}`,
         risk: 'low',
       }
     }

@@ -28,6 +28,7 @@ import { createLogger } from '@electron/utils/logger'
 import { sleep } from '@electron/utils/other'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { FactExtractor } from './FactExtractor'
+import { buildDynamicContext } from './agentUtils'
 import type { SessionLogger } from '@electron/utils/sessionLogger'
 
 const log = createLogger('ChatMode')
@@ -58,20 +59,21 @@ export async function runChatOnly(
     ? factExtractor.getFactsText(persona.id)
     : 'No known facts about the user yet.'
 
-  // ── Build system prompt for native systemInstruction ──
+  // ── Build stable system prompt (no time/facts — for caching) ──
   const systemPrompt = promptLoader.load('system', {
     os: `${os.platform()} ${os.release()}`,
     resolution: visionService?.getResolutionString() ?? '1920x1080',
-    time: new Date().toLocaleString(),
     persona_name: persona.name,
     personality: persona.personality,
-    user_facts: userFacts,
   }, persona.id)
 
-  // Conversation messages — NO fake user/model system prompt pair
+  // Dynamic context — changes every call, NOT cached
+  const dynamicContext = buildDynamicContext(userFacts)
+
+  // Conversation messages — prepend dynamic context to user message
   const messages: LLMMessage[] = [
     ...history,
-    { role: 'user', text: command },
+    { role: 'user', text: `${dynamicContext}\n\n${command}` },
   ]
 
   // Stream IDs for response and thoughts
@@ -84,9 +86,12 @@ export async function runChatOnly(
   let hasStartedResponse = false
 
   try {
+    // Try to use cached context for token savings
+    const cachedContent = await intelligence.getCache(systemPrompt, persona.id, undefined, 'chat').catch(() => null)
+
     // Pass system prompt via native systemInstruction — saves ~300 tokens
     const stopStream = sessionLogger?.startTimer('LLM streaming')
-    const stream = intelligence.streamWithThoughts(messages, systemPrompt)
+    const stream = intelligence.streamWithThoughts(messages, systemPrompt, cachedContent ?? undefined)
 
     for await (const chunk of stream) {
       if (chunk.type === 'thought') {

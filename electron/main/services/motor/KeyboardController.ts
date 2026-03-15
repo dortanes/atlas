@@ -78,9 +78,20 @@ export class KeyboardController {
   typeNative(text: string): void {
     log.info(`typeNative("${text.slice(0, 50)}${text.length > 50 ? '...' : ''}")`)
     // Use delayed typing to prevent characters from being garbled
-    // 6000 CPM ≈ 100 chars/sec ≈ 15ms per character
-    robot.setKeyboardDelay(15)
-    robot.typeStringDelayed(text, 6000)
+    // 3000 CPM ≈ 50 chars/sec ≈ 30ms per character
+    robot.setKeyboardDelay(30)
+
+    // robotjs typeStringDelayed doesn't handle \n as Enter —
+    // split by newlines and press Enter between fragments
+    const lines = text.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].length > 0) {
+        robot.typeStringDelayed(lines[i], 3000)
+      }
+      if (i < lines.length - 1) {
+        robot.keyTap('enter')
+      }
+    }
   }
 
   /**

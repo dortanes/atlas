@@ -76,9 +76,16 @@ function initSubscription() {
       }
     },
   })
-  // Note: we do NOT clear on `processing` state change.
-  // New search results naturally replace old ones, so the user
-  // can still read previous results while a queued task starts.
+
+  // Clear search results when a new command starts processing
+  api.agent.onStateChange.subscribe(undefined, {
+    onData(data: { state: string }) {
+      if (data.state === 'processing') {
+        searchData.value = null
+        dismissing.value = false
+      }
+    },
+  })
 }
 
 export function useSearch() {

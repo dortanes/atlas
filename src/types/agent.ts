@@ -53,6 +53,17 @@ export interface Warning {
   dismissable: boolean
 }
 
+// ── Cursor Animation ──
+
+/** Agent action animation payload — drives the overlay cursor */
+export interface CursorAnimation {
+  type: 'move-click' | 'move-doubleClick' | 'move-rightClick' | 'type' | 'scroll' | 'hide'
+  x?: number
+  y?: number
+  text?: string
+  direction?: 'up' | 'down'
+}
+
 // ── Agent Response / Thoughts ──
 
 /** Type of agent output */

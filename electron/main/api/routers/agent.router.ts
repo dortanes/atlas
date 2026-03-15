@@ -260,6 +260,33 @@ export const agentRouter = trpcRouter({
     })
   }),
 
+  /** Subscribe to cursor animation events (overlay cursor for agent actions) */
+  onCursorAnimation: publicProcedure.subscription(() => {
+    return observable<{
+      type: 'move-click' | 'move-doubleClick' | 'move-rightClick' | 'type' | 'scroll' | 'hide'
+      x?: number
+      y?: number
+      text?: string
+      direction?: 'up' | 'down'
+    }>((emit) => {
+      function onCursor(payload: {
+        type: 'move-click' | 'move-doubleClick' | 'move-rightClick' | 'type' | 'scroll' | 'hide'
+        x?: number
+        y?: number
+        text?: string
+        direction?: 'up' | 'down'
+      }) {
+        emit.next(payload)
+      }
+
+      mainEventBus.on('agent:cursor-animation', onCursor)
+
+      return () => {
+        mainEventBus.off('agent:cursor-animation', onCursor)
+      }
+    })
+  }),
+
   // ── Action Logs ──
 
   /** Get action logs for a persona */

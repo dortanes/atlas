@@ -91,14 +91,6 @@ function buildContextMenu(): void {
     },
     { type: 'separator' },
     {
-      label: 'Toggle AlwaysOnTop',
-      type: 'checkbox',
-      checked: getConfig().ui.alwaysOnTop,
-      click: (item) => {
-        getWindow()?.setAlwaysOnTop(item.checked)
-      },
-    },
-    {
       label: 'Toggle DevTools',
       click: () => {
         getWindow()?.webContents.toggleDevTools()

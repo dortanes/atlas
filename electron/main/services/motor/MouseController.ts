@@ -51,8 +51,11 @@ export class MouseController {
   /** Scroll up or down */
   scroll(direction: 'up' | 'down', amount: number = 3): void {
     log.info(`scroll(${direction}, ${amount})`)
-    // robotjs scrollMouse: positive y = up, negative y = down
+    // robotjs scrollMouse sends raw delta without WHEEL_DELTA (120),
+    // so each unit is ~1/120 of a scroll wheel notch — virtually invisible.
+    // Multiply by 120 so 1 amount unit = 1 real wheel notch (≈3 lines).
+    const SCROLL_MULTIPLIER = 120
     const scrollAmount = direction === 'up' ? amount : -amount
-    robot.scrollMouse(0, scrollAmount)
+    robot.scrollMouse(0, scrollAmount * SCROLL_MULTIPLIER)
   }
 }

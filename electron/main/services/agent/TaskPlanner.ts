@@ -91,11 +91,11 @@ export async function planSteps(
     const planRaw = await intelligence.chatStructured(
       [{
         role: 'user',
-        text: `Break this user command into high-level steps (2-5 steps). Each step should be a short action description.${contextBlock}\n\nRules:\n- Search/lookup = single "Search for <query>" step\n- Opening a URL in a browser = ONE step\n- Use conversation context to resolve references like "this", "его", "it"\n\nCommand: "${command}"`,
+        text: `Break this user command into high-level steps (2-5 steps). Each step should be a short action description in the SAME LANGUAGE as the user's command.${contextBlock}\n\nRules:\n- Step descriptions MUST be in the same language as the user's command\n- Search/lookup = single "Search for <query>" step\n- Opening a URL in a browser = ONE step\n- Use conversation context to resolve references like "this", "that", "it"\n\nCommand: "${command}"`,
       }],
       planJsonSchema,
       undefined,
-      'You decompose user commands into high-level action steps. Return a JSON object with a "steps" array of short step descriptions. Keep descriptions concise (3-8 words). Do not split simple actions into sub-steps.',
+      'You decompose user commands into high-level action steps. Return a JSON object with a "steps" array of short step descriptions. Keep descriptions concise (3-8 words). Do not split simple actions into sub-steps. IMPORTANT: step descriptions must be in the same language as the user command.',
     )
     const plan = PlanSchema.parse(JSON.parse(planRaw))
     log.info(`Plan: ${plan.steps.length} steps — ${plan.steps.join(', ')}`)

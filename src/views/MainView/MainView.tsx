@@ -1,6 +1,7 @@
 import { defineComponent, ref, onUnmounted } from 'vue'
 import './MainView.css'
 import AgentOrb from '@/components/agent/AgentOrb'
+import AgentCursor from '@/components/agent/AgentCursor'
 import ActionIsland from '@/components/islands/ActionIsland'
 import WarningIsland from '@/components/islands/WarningIsland'
 import PermissionIsland from '@/components/islands/PermissionIsland'
@@ -240,6 +241,9 @@ export default defineComponent({
 
     return (
       <div class={['main-view', `main-view--${this.positionSide}`]}>
+
+        {/* Agent cursor overlay — rendered above everything */}
+        <AgentCursor />
 
         <div class={['main-view__stack', !this.agentVisible && 'main-view__stack--hidden']}>
           {/* Notifications — priority ordered */}

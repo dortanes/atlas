@@ -51,7 +51,7 @@ export async function createWindow(): Promise<BrowserWindow> {
     transparent: true,
     hasShadow: false,
     backgroundColor: '#00000000',
-    alwaysOnTop: getConfig().ui.alwaysOnTop,
+    alwaysOnTop: false, // set after creation via setAlwaysOnTop(true, 'screen-saver')
     skipTaskbar: true,
 
     webPreferences: {
@@ -94,6 +94,10 @@ export async function createWindow(): Promise<BrowserWindow> {
   mainEventBus.on('system:open-settings', () => {
     showWindow()
   })
+
+  // Always-on-top with 'screen-saver' level — the highest z-order on Windows.
+  // Hardcoded: required for overlay to function correctly with click-through.
+  win.setAlwaysOnTop(true, 'screen-saver')
 
   log.info('Window created')
   return win
@@ -171,6 +175,10 @@ export function blurForAction(): void {
 export function restoreAfterAction(): void {
   if (!win) return
   win.setIgnoreMouseEvents(true, { forward: true })
+
+  // Re-apply alwaysOnTop — blur() drops the window behind other apps
+  win.setAlwaysOnTop(true, 'screen-saver')
+
   log.debug('Window restored after action')
 }
 

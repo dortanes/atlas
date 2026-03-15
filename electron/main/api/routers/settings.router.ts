@@ -16,7 +16,6 @@ const promptLoader = new PromptLoader()
  */
 
 const uiSchema = z.object({
-  alwaysOnTop: z.boolean().optional(),
   positionSide: z.enum(['left', 'right', 'center']).optional(),
   openDevTools: z.boolean().optional(),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).optional(),
@@ -78,7 +77,11 @@ export const settingsRouter = trpcRouter({
       activePersonaId: z.string().optional(),
     }))
     .mutation(({ input }) => {
-      saveConfig(input)
+      // Prevent stale activePersonaId from the frontend overwriting the
+      // value set by PersonaService.switch() — persona switching has its
+      // own dedicated API, settings save should never change it.
+      const { activePersonaId: _ignored, ...safeInput } = input
+      saveConfig(safeInput)
       const updated = getConfig()
       mainEventBus.emit('config:changed', updated)
       return updated
@@ -114,6 +117,7 @@ export const settingsRouter = trpcRouter({
     .input(z.object({ name: z.string(), content: z.string(), personaId: z.string().optional() }))
     .mutation(({ input }) => {
       promptLoader.save(input.name, input.content, input.personaId)
+      mainEventBus.emit('prompt:saved', { name: input.name, personaId: input.personaId })
       return true
     }),
 
@@ -122,6 +126,7 @@ export const settingsRouter = trpcRouter({
     .input(z.object({ name: z.string(), personaId: z.string().optional() }))
     .mutation(({ input }) => {
       promptLoader.reset(input.name, input.personaId)
+      mainEventBus.emit('prompt:saved', { name: input.name, personaId: input.personaId })
       return promptLoader.load(input.name, undefined, input.personaId)
     }),
 

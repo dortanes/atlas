@@ -75,6 +75,9 @@ function initSubscription() {
     onData(data: { state: string }) {
       if (data.state === 'processing') {
         stopTTS()
+        // Clear old response when a new command starts processing
+        response.value = null
+        dismissing.value = false
       }
     },
   })

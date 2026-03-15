@@ -2,7 +2,7 @@
   "name": "atlas",
   "description": "An AI-powered computer-use agent built with Electron.",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "Apache-2.0",
   "main": ".build/dist-electron/main/index.js",
   "author": {
@@ -53,6 +53,7 @@
     "screenshot-desktop": "^1.15.3",
     "tailwindcss": "^4.1.12",
     "uiohook-napi": "^1.5.4",
+    "yandex-alice-client": "^0.3.1",
     "zod": "^4.1.1"
   },
   "devDependencies": {

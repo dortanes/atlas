@@ -67,6 +67,14 @@ export interface MainEvents {
     status: 'queued' | 'active' | 'done' | 'failed'
     createdAt: string
   }>]
+  /** Cursor animation for agent action overlay (renderer shows animated cursor) */
+  'agent:cursor-animation': [payload: {
+    type: 'move-click' | 'move-doubleClick' | 'move-rightClick' | 'type' | 'scroll' | 'hide'
+    x?: number          // screen-space pixel coords (within overlay window)
+    y?: number
+    text?: string       // for type animation
+    direction?: 'up' | 'down' // for scroll
+  }]
   /** Search results from web search action */
   'agent:search-results': [payload: {
     query: string
@@ -90,6 +98,8 @@ export interface MainEvents {
 
   /** Active persona switched */
   'persona:switched': [payload: { id: string; persona: import('@electron/services/persona/AgentProfile').AgentProfile }]
+  /** Prompt saved or reset (triggers cache invalidation) */
+  'prompt:saved': [payload: { name: string; personaId?: string }]
 
   // ── TTS Events (Phase 3.5) ──
 

@@ -87,8 +87,8 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt (native API, saves tokens)
    */
-  async chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): Promise<string> {
-    log.debug(`chat() with ${messages.length} message(s)`)
+  async chat(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
+    log.debug(`chat() with ${messages.length} message(s)${cachedContent ? ' (cached)' : ''}`)
 
     try {
       const response = await this.client.models.generateContent({
@@ -96,7 +96,7 @@ export class GeminiProvider extends BaseLLMProvider {
         contents: this.toContents(messages),
         config: {
           ...this.toGeminiConfig(config),
-          systemInstruction,
+          ...(cachedContent ? { cachedContent } : { systemInstruction }),
         },
       })
 
@@ -115,15 +115,15 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt (native API, saves tokens)
    */
-  async *stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): AsyncGenerator<string> {
-    log.debug(`stream() with ${messages.length} message(s)`)
+  async *stream(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): AsyncGenerator<string> {
+    log.debug(`stream() with ${messages.length} message(s)${cachedContent ? ' (cached)' : ''}`)
 
     const response = await this.client.models.generateContentStream({
       model: this.model,
       contents: this.toContents(messages),
       config: {
         ...this.toGeminiConfig(config),
-        systemInstruction,
+        ...(cachedContent ? { cachedContent } : { systemInstruction }),
       },
     }).catch((err) => handleError('stream()', err))
 
@@ -150,8 +150,8 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt (native API, saves tokens)
    */
-  async *streamWithThoughts(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string): AsyncGenerator<StreamChunk> {
-    log.debug(`streamWithThoughts() with ${messages.length} message(s)`)
+  async *streamWithThoughts(messages: LLMMessage[], config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): AsyncGenerator<StreamChunk> {
+    log.debug(`streamWithThoughts() with ${messages.length} message(s)${cachedContent ? ' (cached)' : ''}`)
 
     const geminiConfig = this.toGeminiConfig(config) ?? {}
 
@@ -161,7 +161,7 @@ export class GeminiProvider extends BaseLLMProvider {
       config: {
         ...geminiConfig,
         thinkingConfig: { includeThoughts: true },
-        systemInstruction,
+        ...(cachedContent ? { cachedContent } : { systemInstruction }),
       },
     }).catch((err) => handleError('streamWithThoughts()', err))
 
@@ -230,8 +230,8 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param config — optional generation parameters
    * @param systemInstruction — optional system prompt (native API, saves tokens)
    */
-  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
-    log.debug(`chatWithVision() ${messages.length} message(s), image=${image.length} bytes`)
+  async chatWithVision(messages: LLMMessage[], image: Buffer, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
+    log.debug(`chatWithVision() ${messages.length} message(s), image=${image.length} bytes${cachedContent ? ' (cached)' : ''}`)
 
     // Convert messages to Gemini Content, adding image to the last user message
     const contents = messages.map((m, index) => {
@@ -257,7 +257,7 @@ export class GeminiProvider extends BaseLLMProvider {
         contents,
         config: {
           ...this.toGeminiConfig(config),
-          systemInstruction,
+          ...(cachedContent ? { cachedContent } : { systemInstruction }),
         },
       })
 
@@ -281,8 +281,8 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param systemInstruction — optional system prompt
    * @returns Raw JSON string — caller should parse with Zod `.parse()`
    */
-  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
-    log.debug(`chatStructured() with ${messages.length} message(s)`)
+  async chatStructured(messages: LLMMessage[], jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
+    log.debug(`chatStructured() with ${messages.length} message(s)${cachedContent ? ' (cached)' : ''}`)
 
     try {
       const response = await this.client.models.generateContent({
@@ -292,7 +292,7 @@ export class GeminiProvider extends BaseLLMProvider {
           ...this.toGeminiConfig(config),
           responseMimeType: 'application/json',
           responseJsonSchema: jsonSchema,
-          systemInstruction,
+          ...(cachedContent ? { cachedContent } : { systemInstruction }),
         },
       })
 
@@ -317,8 +317,8 @@ export class GeminiProvider extends BaseLLMProvider {
    * @param systemInstruction — optional system prompt
    * @returns Raw JSON string — caller should parse with Zod `.parse()`
    */
-  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string): Promise<string> {
-    log.debug(`chatWithVisionStructured() ${messages.length} message(s), image=${image.length} bytes`)
+  async chatWithVisionStructured(messages: LLMMessage[], image: Buffer, jsonSchema: Record<string, unknown>, config?: GenerationConfig, systemInstruction?: string, cachedContent?: string): Promise<string> {
+    log.debug(`chatWithVisionStructured() ${messages.length} message(s), image=${image.length} bytes${cachedContent ? ' (cached)' : ''}`)
 
     // Build contents with image on last user message
     const contents = messages.map((m, index) => {
@@ -346,7 +346,7 @@ export class GeminiProvider extends BaseLLMProvider {
           ...this.toGeminiConfig(config),
           responseMimeType: 'application/json',
           responseJsonSchema: jsonSchema,
-          systemInstruction,
+          ...(cachedContent ? { cachedContent } : { systemInstruction }),
         },
       })
 
@@ -379,8 +379,9 @@ export class GeminiProvider extends BaseLLMProvider {
     contents: Array<{ role: string; parts: Array<Record<string, unknown>> }>,
     systemInstruction?: string,
     excludedFunctions?: string[],
+    cachedContent?: string,
   ) {
-    log.debug(`chatWithComputerUse() ${contents.length} content(s)`)
+    log.debug(`chatWithComputerUse() ${contents.length} content(s)${cachedContent ? ' (cached)' : ''}`)
 
     // Log contents structure for debugging
     for (let i = 0; i < contents.length; i++) {
@@ -400,7 +401,7 @@ export class GeminiProvider extends BaseLLMProvider {
         model: this.model,
         contents,
         config: {
-          systemInstruction,
+          ...(cachedContent ? { cachedContent } : { systemInstruction }),
           tools: [{
             computerUse: {
               environment: Environment.ENVIRONMENT_BROWSER,

@@ -59,6 +59,10 @@ Respond with exactly one JSON object. No text, no markdown, no explanations.
 - Delete: `Remove-Item "C:\path" -Recurse -Force`
 - Move: `Move-Item "C:\from" "C:\to"`
 - Copy: `Copy-Item "C:\from" "C:\to"`
+- Desktop path: `[Environment]::GetFolderPath('Desktop')`
+- Documents path: `[Environment]::GetFolderPath('MyDocuments')`
+- Downloads path: `(New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path`
+- Delete from Desktop example: `Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'file.txt') -Force`
 
 ### Web Search
 - Use "search" action instead of opening a browser: `{"action": "search", "query": "search terms", "reason": "why", "risk": "low"}`
@@ -78,5 +82,7 @@ Respond with exactly one JSON object. No text, no markdown, no explanations.
 4. Risk: `low` for reading/info, `medium` for opening apps, `high` for deleting/killing, `critical` for irreversible ops.
 5. **NEVER close Atlas**. Process names: "atlas", "electron". Exclude from bulk operations.
 6. If you genuinely need to see the screen → return `{"action": "needsVision", "reason": "..."}`.
-7. When user asks to search for information online, use `{"action": "search", "query": "...", "reason": "...", "risk": "low"}`.
-8. When user asks to find/locate a file on their computer, use `{"action": "searchFiles", "query": "...", "reason": "...", "risk": "low"}`.
+7. **If the task requires TYPING/WRITING TEXT into an application** (Notepad, Word, browser, any GUI input field) → return `{"action": "needsVision", "reason": "need to type text into application window"}`. NEVER use SendKeys, System.Windows.Forms, or clipboard pasting through runCommand to type or insert text. All text input MUST go through the agent's built-in actions (type, hotkey, keyPress) via robotjs.
+8. When user asks to search for information online, use `{"action": "search", "query": "...", "reason": "...", "risk": "low"}`.
+9. When user asks to find/locate a file on their computer, use `{"action": "searchFiles", "query": "...", "reason": "...", "risk": "low"}`.
+10. **NEVER use `$env:USERPROFILE\Desktop`, `$env:USERPROFILE\Documents`, etc.** OneDrive redirects these folders. ALWAYS use `[Environment]::GetFolderPath('Desktop')`, `[Environment]::GetFolderPath('MyDocuments')`, etc. Use `Join-Path` to build the full path.

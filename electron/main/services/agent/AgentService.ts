@@ -45,6 +45,7 @@ export class AgentService extends BaseService {
   private factService: FactService
   private visionService: VisionService | null
   private motorService: MotorService | null
+  private searchService: SearchService | null
   private classifierService: ClassifierService
   private promptLoader = new PromptLoader()
   private stateMachine = new AgentStateMachine()
@@ -80,6 +81,7 @@ export class AgentService extends BaseService {
     this.factService = factService
     this.visionService = visionService ?? null
     this.motorService = motorService ?? null
+    this.searchService = searchService ?? null
 
     // Bootstrap classifier subsystem
     this.classifierService = new ClassifierService()
@@ -94,7 +96,7 @@ export class AgentService extends BaseService {
       factService,
       this.visionService ?? undefined,
       this.motorService ?? undefined,
-      searchService,
+      this.searchService ?? undefined,
     )
   }
 
@@ -227,6 +229,7 @@ export class AgentService extends BaseService {
       this.factService,
       this.visionService ?? undefined,
       this.motorService ?? undefined,
+      this.searchService ?? undefined,
     )
 
     this.stateMachine.reset()
@@ -245,11 +248,8 @@ export class AgentService extends BaseService {
   /** Handle permission response from the UI */
   private onPermissionResponse(payload: { id: string; allowed: boolean }): void {
     this.log.info(`Permission response: ${payload.id} → ${payload.allowed ? 'allowed' : 'denied'}`)
-    if (payload.allowed) {
-      this.stateMachine.transition('USER_CONFIRM')
-    } else {
-      this.stateMachine.transition('USER_CANCEL')
-    }
+    // State transitions are handled by the loop that requested permission
+    // (ComputerUseLoop.requestPermission / ActionLoop equivalent)
   }
 
   /** Handle warning dismissal from the UI */

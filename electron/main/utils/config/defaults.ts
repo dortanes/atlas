@@ -10,7 +10,6 @@ import type { AppConfig } from './schema'
 
 export const defaultConfig: AppConfig = {
   ui: {
-    alwaysOnTop: true,
     positionSide: 'right',
     openDevTools: !app.isPackaged,
     logLevel: 'debug',

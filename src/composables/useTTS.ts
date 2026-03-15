@@ -2,22 +2,28 @@ import { ref } from 'vue'
 import { api } from '@/api'
 
 /**
- * useTTS — TTS audio playback via MediaSource Extensions.
+ * useTTS — TTS audio playback with dual-format support.
  *
- * Subscribes to `audio.onTTSAudio` (base64-encoded mp3 chunks)
- * and plays them in real-time using MSE SourceBuffer.
+ * Supports two playback modes based on the provider's audio format:
+ * - **mpeg**: streaming via MediaSource Extensions (MSE)
+ * - **opus**: complete buffer via blob URL + Audio element
+ *
+ * Subscribes to `audio.onTTSFormat`, `audio.onTTSAudio`, `audio.onTTSStatus`.
  *
  * Usage: call `useTTS()` once in MainView setup — it auto-subscribes.
  */
 
 const speaking = ref(false)
 
+let currentFormat: 'mpeg' | 'opus' = 'mpeg'
 let mediaSource: MediaSource | null = null
 let sourceBuffer: SourceBuffer | null = null
 let audioElement: HTMLAudioElement | null = null
 let pendingChunks: Uint8Array[] = []
 let sourceBufferReady = false
 let subscribed = false
+
+// ── Helpers ──
 
 /** Convert base64 string to Uint8Array */
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -28,6 +34,8 @@ function base64ToUint8Array(base64: string): Uint8Array {
   }
   return bytes
 }
+
+// ── MSE pipeline (for mpeg streaming) ──
 
 /** Flush any queued chunks to the SourceBuffer */
 function flushPendingChunks() {
@@ -86,7 +94,7 @@ function resetMSE() {
 }
 
 /** Add an audio chunk to the MSE pipeline */
-function addChunk(base64Data: string) {
+function addChunkMSE(base64Data: string) {
   const chunk = base64ToUint8Array(base64Data)
   if (chunk.length === 0) return
 
@@ -97,9 +105,8 @@ function addChunk(base64Data: string) {
   }
 }
 
-/** Signal that all audio has been received */
-function endStream() {
-  // Flush remaining chunks, then close when done
+/** Signal that all audio has been received (MSE) */
+function endStreamMSE() {
   const waitForFlush = () => {
     if (!sourceBuffer || !mediaSource) return
     if (sourceBuffer.updating || pendingChunks.length > 0) {
@@ -117,9 +124,74 @@ function endStream() {
   waitForFlush()
 }
 
+// ── Blob URL pipeline (for opus / non-streaming) ──
+
+/** Collected chunks for non-streaming playback */
+let blobChunks: Uint8Array[] = []
+
+/** Reset blob state for a new session */
+function resetBlob() {
+  blobChunks = []
+
+  // Clean up previous audio element
+  if (audioElement) {
+    audioElement.pause()
+    audioElement.removeAttribute('src')
+    audioElement.load()
+  }
+
+  audioElement = audioElement || new Audio()
+}
+
+/** Add a chunk to the blob buffer */
+function addChunkBlob(base64Data: string) {
+  const chunk = base64ToUint8Array(base64Data)
+  if (chunk.length === 0) return
+  blobChunks.push(chunk)
+}
+
+/** All chunks received — create blob URL and play */
+function endStreamBlob() {
+  if (blobChunks.length === 0) return
+
+  // Merge all chunks into a single Uint8Array for Blob constructor
+  const totalLength = blobChunks.reduce((acc, c) => acc + c.length, 0)
+  const merged = new Uint8Array(totalLength)
+  let offset = 0
+  for (const c of blobChunks) {
+    merged.set(c, offset)
+    offset += c.length
+  }
+
+  const blob = new Blob([merged.buffer], { type: 'audio/ogg; codecs=opus' })
+  const url = URL.createObjectURL(blob)
+
+  if (!audioElement) audioElement = new Audio()
+  audioElement.src = url
+  audioElement.play().catch((err) => {
+    console.warn('[useTTS] Blob playback failed:', err)
+  })
+
+  // Clean up blob URL when done
+  audioElement.addEventListener('ended', () => {
+    URL.revokeObjectURL(url)
+  }, { once: true })
+
+  blobChunks = []
+}
+
+// ── Subscriptions ──
+
 function initSubscriptions() {
   if (subscribed) return
   subscribed = true
+
+  // TTS format (tells us which playback pipeline to use)
+  api.audio.onTTSFormat.subscribe(undefined, {
+    onData(data: { format: 'mpeg' | 'opus' }) {
+      currentFormat = data.format
+    },
+  })
 
   // TTS status
   api.audio.onTTSStatus.subscribe(undefined, {
@@ -127,8 +199,12 @@ function initSubscriptions() {
       speaking.value = data.speaking
 
       if (data.speaking) {
-        // New speech session — prepare MSE
-        resetMSE()
+        // New speech session — prepare playback pipeline
+        if (currentFormat === 'opus') {
+          resetBlob()
+        } else {
+          resetMSE()
+        }
       }
     },
   })
@@ -136,10 +212,18 @@ function initSubscriptions() {
   // TTS audio chunks
   api.audio.onTTSAudio.subscribe(undefined, {
     onData(data: { data: string; done: boolean }) {
-      if (data.done) {
-        endStream()
+      if (currentFormat === 'opus') {
+        if (data.done) {
+          endStreamBlob()
+        } else {
+          addChunkBlob(data.data)
+        }
       } else {
-        addChunk(data.data)
+        if (data.done) {
+          endStreamMSE()
+        } else {
+          addChunkMSE(data.data)
+        }
       }
     },
   })

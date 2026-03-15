@@ -1,0 +1,254 @@
+/* ═══════════════════════════════════════════════
+   AgentCursor — Animated Target Ring Indicator
+   ═══════════════════════════════════════════════
+
+   Uses a glowing ring + center dot instead of an arrow cursor,
+   because the OS system cursor is always rendered above all
+   windows at the hardware/compositor level.
+   ═══════════════════════════════════════════════ */
+
+/* ── Container (fixed to viewport, no pointer events) ── */
+.agent-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── Pointer wrapper — position + movement transition ── */
+.agent-cursor__pointer {
+  position: absolute;
+  width: 0;
+  height: 0;
+  will-change: left, top, opacity, transform;
+}
+
+/* ── Outer glow ring (big, soft) ── */
+.agent-cursor__ring-outer {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  top: -24px;
+  left: -24px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.15) 0%,
+    hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.05) 50%,
+    transparent 70%
+  );
+  animation: cursor-glow-pulse 2s ease-in-out infinite;
+}
+
+/* ── Main ring (crisp, accent colored) ── */
+.agent-cursor__ring {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  top: -14px;
+  left: -14px;
+  border-radius: 50%;
+  border: 2px solid hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.8);
+  background: hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.08);
+  box-shadow:
+    0 0 12px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.4),
+    0 0 24px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.15),
+    inset 0 0 6px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.1);
+  transition: transform 150ms ease, border-color 150ms ease;
+}
+
+/* Ring contracts on click */
+.agent-cursor__ring--clicking {
+  transform: scale(0.7);
+  border-color: hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 1);
+}
+
+/* ── Center dot ── */
+.agent-cursor__dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  top: -2px;
+  left: -2px;
+  border-radius: 50%;
+  background: hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.9);
+  box-shadow: 0 0 6px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.6);
+}
+
+/* ── Appear animation ── */
+.agent-cursor__pointer--entering {
+  animation: cursor-appear 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Hide animation ── */
+.agent-cursor__pointer--leaving {
+  animation: cursor-hide 350ms ease both;
+}
+
+/* ── Click ripple ── */
+.agent-cursor__ripple {
+  position: absolute;
+  width: 0;
+  height: 0;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  border: 2px solid hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.6);
+  background: radial-gradient(
+    circle,
+    hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.3) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  animation: cursor-click-ripple 450ms ease-out forwards;
+}
+
+/* ── Type bubble ── */
+.agent-cursor__type-bubble {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  background: hsla(var(--glass-accent-h), var(--glass-accent-s), 12%, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.3);
+  border-radius: 10px;
+  padding: 5px 12px;
+  max-width: 280px;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsla(0, 0%, 95%, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: cursor-type-bubble 350ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  box-shadow:
+    0 4px 20px hsla(var(--glass-accent-h), var(--glass-accent-s), 10%, 0.4),
+    0 0 0 0.5px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.2);
+  letter-spacing: 0.3px;
+}
+
+.agent-cursor__type-icon {
+  display: inline-block;
+  margin-right: 5px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ── Scroll indicator ── */
+.agent-cursor__scroll-indicator {
+  position: absolute;
+  top: 20px;
+  left: -5px;
+  font-size: 16px;
+  color: hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.85);
+  filter: drop-shadow(0 0 6px hsla(var(--glass-accent-h), var(--glass-accent-s), var(--glass-accent-l), 0.4));
+  animation: cursor-scroll-pulse 600ms ease both;
+}
+
+.agent-cursor__scroll-indicator--up {
+  animation: cursor-scroll-pulse-up 600ms ease both;
+}
+
+/* ═══════════════════════════════════════════════
+   Keyframes
+   ═══════════════════════════════════════════════ */
+
+/* Ring glow breathing */
+@keyframes cursor-glow-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Appear — ring expands from center */
+@keyframes cursor-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hide — ring shrinks + fades */
+@keyframes cursor-hide {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+/* Click ripple — expanding ring */
+@keyframes cursor-click-ripple {
+  0% {
+    width: 0;
+    height: 0;
+    top: 0;
+    left: 0;
+    opacity: 0.9;
+  }
+  100% {
+    width: 56px;
+    height: 56px;
+    top: -28px;
+    left: -28px;
+    opacity: 0;
+  }
+}
+
+/* Type bubble float-in */
+@keyframes cursor-type-bubble {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Scroll down pulse */
+@keyframes cursor-scroll-pulse {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Scroll up pulse */
+@keyframes cursor-scroll-pulse-up {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}

@@ -9,7 +9,6 @@ import { api } from '@/api'
  */
 
 export interface UIConfig {
-  alwaysOnTop: boolean
   positionSide: 'left' | 'right' | 'center'
   openDevTools: boolean
   logLevel: 'debug' | 'info' | 'warn' | 'error'
@@ -66,7 +65,6 @@ export interface AppConfig {
 export function useSettings() {
   const config = reactive<AppConfig>({
     ui: {
-      alwaysOnTop: true,
       positionSide: 'right',
       openDevTools: false,
       logLevel: 'debug',

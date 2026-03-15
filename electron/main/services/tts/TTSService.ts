@@ -1,6 +1,7 @@
 import { BaseService } from '@electron/services/base/BaseService'
 import { BaseTTSProvider } from './providers/BaseTTSProvider'
 import { ElevenLabsProvider } from './providers/ElevenLabsProvider'
+import { YandexAliceProvider } from './providers/YandexAliceProvider'
 import { getConfig, saveConfig, type AppConfig } from '@electron/utils/config'
 import { mainEventBus } from '@electron/utils/eventBus'
 import { formatTTSError, isTTSQuotaError } from '@electron/utils/ttsErrors'
@@ -47,11 +48,14 @@ export class TTSService extends BaseService {
       return
     }
 
-    if (!config.tts.apiKey) {
+    // Yandex Alice doesn't need an API key
+    const needsApiKey = config.tts.provider !== 'yandex-alice'
+
+    if (needsApiKey && !config.tts.apiKey) {
       this.log.warn('No TTS API key configured — TTS calls will fail')
       mainEventBus.emit('agent:warning', {
         id: 'missing-tts-key',
-        message: 'TTS API key not configured. Set your ElevenLabs API key in settings to enable voice output.',
+        message: 'TTS API key not configured. Set your API key in settings to enable voice output.',
         dismissable: true,
       })
       return
@@ -63,12 +67,20 @@ export class TTSService extends BaseService {
 
   async dispose(): Promise<void> {
     this.stop()
+    this.disposeProvider()
     mainEventBus.off('tts:speak', this.boundOnSpeak)
     mainEventBus.off('tts:stop', this.boundOnStop)
     mainEventBus.off('persona:switched', this.boundOnPersonaSwitched)
     mainEventBus.off('config:changed', this.boundOnConfigChanged)
     this.provider = null
     this.log.info('TTSService disposed')
+  }
+
+  /** Dispose current provider (close connections etc.) */
+  private disposeProvider(): void {
+    if (this.provider instanceof YandexAliceProvider) {
+      this.provider.close()
+    }
   }
 
   /**
@@ -82,11 +94,22 @@ export class TTSService extends BaseService {
     return getConfig().tts.voiceId
   }
 
+  /** Audio format for the current provider */
+  get audioFormat(): 'mpeg' | 'opus' {
+    return this.provider?.name === 'yandex-alice' ? 'opus' : 'mpeg'
+  }
+
   /** Create a provider by name */
   private createProvider(name: string, apiKey: string, voiceId: string): void {
     const config = getConfig()
 
+    // Dispose previous provider before creating a new one
+    this.disposeProvider()
+
     switch (name) {
+      case 'yandex-alice':
+        this.provider = new YandexAliceProvider()
+        break
       case 'elevenlabs':
         this.provider = new ElevenLabsProvider(apiKey, voiceId, config.tts.model)
         break
@@ -99,7 +122,8 @@ export class TTSService extends BaseService {
   /** Switch provider at runtime */
   setProvider(name: string): void {
     const config = getConfig()
-    if (!config.tts.apiKey) {
+    const needsApiKey = name !== 'yandex-alice'
+    if (needsApiKey && !config.tts.apiKey) {
       this.log.error('Cannot switch TTS provider: no API key')
       return
     }
@@ -155,6 +179,7 @@ export class TTSService extends BaseService {
     this.speaking = true
     this.abortController = new AbortController()
     mainEventBus.emit('tts:status', { speaking: true })
+    mainEventBus.emit('tts:format', { format: this.audioFormat })
 
     try {
       const stream = this.provider.streamSpeech(text)
@@ -235,13 +260,16 @@ export class TTSService extends BaseService {
   private onConfigChanged(config: AppConfig): void {
     if (!config.tts.enabled) {
       this.stop()
+      this.disposeProvider()
       this.provider = null
       this.log.info('TTS disabled at runtime')
       return
     }
 
-    // TTS enabled — create or rebuild provider if API key present
-    if (config.tts.apiKey) {
+    const needsApiKey = config.tts.provider !== 'yandex-alice'
+
+    // TTS enabled — create or rebuild provider
+    if (!needsApiKey || config.tts.apiKey) {
       mainEventBus.emit('agent:dismiss-warning', { id: 'missing-tts-key' })
       this.createProvider(config.tts.provider, config.tts.apiKey, this.getActiveVoiceId())
       this.log.info('TTS provider (re)built from config change')

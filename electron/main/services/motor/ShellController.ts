@@ -29,11 +29,14 @@ export class ShellController {
    * Execute a PowerShell command and return its output.
    */
   async exec(command: string): Promise<ShellResult> {
-    log.info(`exec: ${command}`)
+    // Patch hardcoded user folder paths — LLMs often use $HOME\Desktop etc.
+    // which breaks when OneDrive redirects these folders.
+    const patched = this.patchUserFolderPaths(command)
+    log.info(`exec: ${patched}`)
 
     return new Promise((resolve) => {
       exec(
-        command,
+        patched,
         {
           shell: 'powershell.exe',
           timeout: getConfig().agent.commandTimeout,
@@ -58,5 +61,57 @@ export class ShellController {
         },
       )
     })
+  }
+
+  /**
+   * Replace hardcoded user folder paths with OneDrive-safe alternatives.
+   *
+   * LLMs generate paths like `$HOME\Desktop` or `$env:USERPROFILE\Documents`
+   * which break when OneDrive (or other sync tools) redirect shell folders.
+   * We replace these with `[Environment]::GetFolderPath()` which always
+   * resolves to the actual folder location on any Windows system.
+   */
+  private patchUserFolderPaths(command: string): string {
+    const FOLDER_MAP: Array<[string, string]> = [
+      ['Desktop',   'Desktop'],
+      ['Documents', 'MyDocuments'],
+      ['Pictures',  'MyPictures'],
+      ['Music',     'MyMusic'],
+      ['Videos',    'MyVideos'],
+    ]
+
+    // Prefixes that LLMs use before folder names
+    const PREFIXES = [
+      '\\$HOME',
+      '\\$env:USERPROFILE',
+      '\\$env:HOME',
+      '~',
+    ]
+
+    let patched = command
+
+    for (const [folderName, enumValue] of FOLDER_MAP) {
+      const replacement = `$([Environment]::GetFolderPath('${enumValue}'))`
+      for (const prefix of PREFIXES) {
+        patched = patched.replace(
+          new RegExp(`${prefix}[/\\\\]${folderName}`, 'gi'),
+          replacement,
+        )
+      }
+    }
+
+    // Downloads has no .NET enum — use shell: protocol
+    for (const prefix of PREFIXES) {
+      patched = patched.replace(
+        new RegExp(`${prefix}[/\\\\]Downloads`, 'gi'),
+        `$((New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path)`,
+      )
+    }
+
+    if (patched !== command) {
+      log.info('Patched user folder paths in command')
+    }
+
+    return patched
   }
 }

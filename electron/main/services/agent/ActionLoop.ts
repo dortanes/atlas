@@ -42,6 +42,7 @@ import type { StepTask } from './TaskPlanner'
 import * as z from 'zod'
 import type { AgentProfile } from '@electron/services/persona/AgentProfile'
 import type { AgentAction } from './types'
+import { buildDynamicContext } from './agentUtils'
 import type { FactExtractor } from './FactExtractor'
 import type { SessionLogger } from '@electron/utils/sessionLogger'
 
@@ -84,14 +85,12 @@ export async function runActionLoop(
 
   const resolution = visionService.getResolutionString()
 
-  // ── Build system prompt for native systemInstruction ──
+  // ── Stable system prompt (no time/facts — for caching) ──
   const systemPrompt = promptLoader.load('system', {
     os: `${os.platform()} ${os.release()}`,
     resolution,
-    time: new Date().toLocaleString(),
     persona_name: persona.name,
     personality: persona.personality,
-    user_facts: userFacts,
   }, persona.id)
 
   // ── Compute screenshot dimensions for coordinate rescaling ──
@@ -122,8 +121,9 @@ export async function runActionLoop(
   const executionBranch: string[] = []
 
   // NO fake user/model system prompt pair — use native systemInstruction instead
-  // Build the initial user message with action prompt, plan, and execution context
-  let userPrompt = `${actionPrompt}\n\nUser command: ${command}`
+  // Build the initial user message with dynamic context, action prompt, plan, and execution context
+  const dynamicContext = buildDynamicContext(userFacts)
+  let userPrompt = `${dynamicContext}\n\n${actionPrompt}\n\nUser command: ${command}`
 
   // Include previous actions from conversation history so LLM knows what's already open
   const prevActions = history.filter(m => m.role === 'model' && m.text.includes('"action"')).slice(-3)
@@ -158,6 +158,9 @@ export async function runActionLoop(
   // Generate JSON schema once (reused every iteration) for structured output
   const actionJsonSchema = z.toJSONSchema(AgentActionSchema) as Record<string, unknown>
 
+  // Try to cache the system prompt + action prompt for token savings across iterations
+  const cachedContent = await intelligence.getCache(systemPrompt, persona.id, actionPrompt, 'action').catch(() => null)
+
   // ── Main loop ──
   while (iteration < maxIterations && consecutiveFailures < maxConsecutiveFailures) {
     iteration++
@@ -170,8 +173,8 @@ export async function runActionLoop(
       // Ask LLM for next action — structured output forces valid JSON
       const stopLLM = sessionLogger?.startTimer(`Iteration ${iteration} LLM call`)
       const llmResponse = screenshot
-        ? await intelligence.chatWithVisionStructured(messages, screenshot, actionJsonSchema, undefined, systemPrompt)
-        : await intelligence.chatStructured(messages, actionJsonSchema, undefined, systemPrompt)
+        ? await intelligence.chatWithVisionStructured(messages, screenshot, actionJsonSchema, undefined, systemPrompt, cachedContent ?? undefined)
+        : await intelligence.chatStructured(messages, actionJsonSchema, undefined, systemPrompt, cachedContent ?? undefined)
       stopLLM?.()
       screenshot = null
       log.debug(`LLM: ${llmResponse.slice(0, 200)}`)
@@ -344,12 +347,12 @@ export async function runActionLoop(
       // Mark step as done in MicrotaskIsland
       if (currentStepId) markStep(stepTasks, currentStepId, 'done')
 
-      // Auto-screenshot after mouse actions for verification
-      const isMouseAction = ['click', 'doubleClick', 'rightClick'].includes(action.action)
-      if (isMouseAction) {
+      // Auto-screenshot after visual actions for verification
+      const needsVerification = ['click', 'doubleClick', 'rightClick', 'scroll'].includes(action.action)
+      if (needsVerification) {
         await sleep(getConfig().agent.postActionDelay)
         screenshot = await visionService.takeScreenshot()
-        executionBranch.push(`[${iteration}] auto-screenshot — verifying click result`)
+        executionBranch.push(`[${iteration}] auto-screenshot — verifying ${action.action} result`)
         const branchText = formatBranch(executionBranch)
         const verifyPrompt = promptLoader.load('verify_action', { branch: branchText })
         messages.push(
@@ -378,6 +381,7 @@ export async function runActionLoop(
 
   // ── Cleanup ──
   mainEventBus.emit('agent:action', null)
+  motorService.hideCursor()
   // Final emit — steps remain visible in MicrotaskIsland (user dismisses manually)
   emitSteps(stepTasks)
 

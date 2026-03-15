@@ -214,6 +214,7 @@ export class AgentLoop {
         this.visionService,
         this.motorService,
         this.factExtractor ?? undefined,
+        this.searchService ?? undefined,
         sessionLogger,
       )
     }
