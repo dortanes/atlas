@@ -1,11 +1,11 @@
 import os from 'node:os'
-import { BrowserWindow, screen, systemPreferences } from 'electron'
+import { BrowserWindow, screen, shell, systemPreferences } from 'electron'
 import { observable } from '@trpc/server/observable'
 import { z } from 'zod'
 import { trpcRouter, publicProcedure } from '@electron/api/context'
 import { mainEventBus } from '@electron/utils/eventBus'
 import { getAccentHsl } from '@electron/utils/color'
-import { toggleWindow, showWindow, setSettingsOpen } from '@electron/WindowManager'
+import { toggleWindow, showWindow, forceHideWindow } from '@electron/WindowManager'
 
 /**
  * system.router — queries & subscriptions for system-level info.
@@ -86,20 +86,21 @@ export const systemRouter = trpcRouter({
     mainEventBus.emit('system:close-settings')
   }),
 
-  /** Notify main process that settings overlay opened/closed */
-  notifySettingsOpen: publicProcedure
-    .input(z.object({ open: z.boolean() }))
-    .mutation(({ input }) => {
-      setSettingsOpen(input.open)
-    }),
 
   /** Hide the Atlas window (triggered by Escape from renderer) */
   hideWindow: publicProcedure.mutation(() => {
-    toggleWindow()
+    forceHideWindow()
   }),
 
   /** Show the Atlas window (triggered by STT wake word) */
   showWindow: publicProcedure.mutation(() => {
     showWindow()
   }),
+
+  /** Open an external URL in the default browser */
+  openExternal: publicProcedure
+    .input(z.object({ url: z.string() }))
+    .mutation(({ input }) => {
+      if (input.url.startsWith('https://')) shell.openExternal(input.url)
+    }),
 })

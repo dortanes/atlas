@@ -14,25 +14,41 @@ export default defineComponent({
 
   setup() {
     const view = ref<'main' | 'settings'>('main')
+    const agentIsVisible = ref(false)
+    let agentWasVisibleBeforeSettings = false
+
+    // Track real agent visibility from backend
+    const visibilitySub = api.system.onAgentVisibility.subscribe(undefined, {
+      onData(visible: boolean) {
+        agentIsVisible.value = visible
+      },
+    })
 
     // Listen for "open settings" events from tray
     const settingsSub = api.system.onOpenSettings.subscribe(undefined, {
       onData() {
+        // Snapshot agent visibility BEFORE opening settings
+        agentWasVisibleBeforeSettings = agentIsVisible.value
         // Disable click-through so user can interact with settings
         api.system.setIgnoreMouseEvents.mutate({ ignore: false })
-        api.system.notifySettingsOpen.mutate({ open: true })
         view.value = 'settings'
       },
     })
 
     function closeSettings() {
       view.value = 'main'
-      api.system.notifySettingsOpen.mutate({ open: false })
       // Re-enable click-through for overlay mode
       api.system.setIgnoreMouseEvents.mutate({ ignore: true, forward: true })
+      // If agent wasn't visible before settings, hide the window
+      if (!agentWasVisibleBeforeSettings) {
+        api.system.hideWindow.mutate()
+      }
     }
 
-    onUnmounted(() => settingsSub.unsubscribe())
+    onUnmounted(() => {
+      settingsSub.unsubscribe()
+      visibilitySub.unsubscribe()
+    })
 
     return { view, closeSettings }
   },

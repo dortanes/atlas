@@ -24,7 +24,6 @@ const log = createLogger('WindowManager')
 
 let win: BrowserWindow | null = null
 let isAgentVisible = false
-let settingsOpen = false
 
 // ── Multi-Monitor Positioning ──
 
@@ -125,13 +124,16 @@ export function showWindow(): void {
   }
 }
 
-/** Show window AND disable click-through (for settings overlay). */
+/** Show window AND disable click-through (for settings overlay). Does NOT activate the agent. */
 export function showWindowForSettings(): void {
-  showWindow()
-  if (win) {
-    win.setIgnoreMouseEvents(false)
-    log.info('Window shown for settings')
-  }
+  if (!win) return
+  // Make window visible on active monitor WITHOUT emitting agent-visibility
+  const { x, y, width, height } = getActiveDisplayBounds()
+  win.setBounds({ x, y, width, height })
+  win.setOpacity(1)
+  win.setIgnoreMouseEvents(false)
+  win.focus()
+  log.info('Window shown for settings (agent not activated)')
 }
 
 // ── Visibility Toggle ──
@@ -139,11 +141,6 @@ export function showWindowForSettings(): void {
 export function toggleWindow(): void {
   if (!win) return
 
-  // Don't allow hiding while the settings overlay is open
-  if (isAgentVisible && settingsOpen) {
-    log.info('Toggle ignored — settings overlay is open')
-    return
-  }
 
   if (isAgentVisible) {
     // Notify renderer so it can animate out
@@ -167,6 +164,15 @@ export function toggleWindow(): void {
   }
 
   log.info(`Agent ${isAgentVisible ? 'shown' : 'hidden'}`)
+}
+
+/** Unconditionally hide the window (used when closing settings without agent). */
+export function forceHideWindow(): void {
+  if (!win) return
+  win.setIgnoreMouseEvents(true)
+  win.setOpacity(0)
+  isAgentVisible = false
+  log.info('Window force-hidden')
 }
 
 
@@ -210,10 +216,7 @@ export function clearWindow(): void {
   win = null
 }
 
-export function setSettingsOpen(open: boolean): void {
-  settingsOpen = open
-  log.info(`Settings overlay ${open ? 'opened' : 'closed'}`)
-}
+
 
 /** Get the Electron Display that the Atlas window currently occupies. */
 export function getWindowDisplay() {

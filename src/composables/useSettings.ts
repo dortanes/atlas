@@ -1,11 +1,11 @@
-import { ref, reactive, toRaw } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { api } from '@/api'
 
 /**
  * useSettings — composable for settings UI.
  *
- * Loads/saves AppConfig via tRPC, manages prompt editing,
- * and provides loading/saving reactive states.
+ * Loads AppConfig via tRPC, auto-saves on changes (debounced),
+ * and provides prompt editing functionality.
  */
 
 export interface UIConfig {
@@ -13,6 +13,8 @@ export interface UIConfig {
   openDevTools: boolean
   logLevel: 'debug' | 'info' | 'warn' | 'error'
   debugLog: boolean
+  soundEnabled: boolean
+  soundVolume: number
 }
 
 export interface LLMConfig {
@@ -75,6 +77,8 @@ export function useSettings() {
       openDevTools: false,
       logLevel: 'debug',
       debugLog: false,
+      soundEnabled: true,
+      soundVolume: 0.5,
     },
     llm: {
       provider: 'gemini',
@@ -121,12 +125,18 @@ export function useSettings() {
   const saving = ref(false)
   const saved = ref(false)
 
+  // ── Auto-save debounce ──
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  let configLoaded = false
+
   /** Load config from backend */
   async function loadConfig() {
     loading.value = true
     try {
       const result = await api.settings.getConfig.query()
       Object.assign(config, result)
+      // Start watching for changes only after initial load
+      configLoaded = true
     } catch (err) {
       console.error('Failed to load config:', err)
     } finally {
@@ -150,6 +160,21 @@ export function useSettings() {
       saving.value = false
     }
   }
+
+  /** Debounced auto-save — triggers 800ms after last change */
+  function scheduleSave() {
+    if (!configLoaded) return
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      saveConfig()
+    }, 800)
+  }
+
+  // Watch entire config deeply for auto-save
+  watch(
+    () => JSON.stringify(config),
+    () => { scheduleSave() },
+  )
 
   // ── Prompts ──
 

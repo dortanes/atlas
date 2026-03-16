@@ -9,7 +9,7 @@ interface ActionLogEntry {
 }
 
 /**
- * ActionsSubTab — displays action history (execution branch) for a persona.
+ * ActionsSubTab — action history with Material status icons, styled log cards.
  */
 export default defineComponent({
   name: 'ActionsSubTab',
@@ -56,10 +56,10 @@ export default defineComponent({
     }
 
     function getStatusIcon(entry: string): string {
-      if (entry.includes('] OK:')) return '✅'
-      if (entry.includes('] FAILED:')) return '❌'
-      if (entry.includes('] screenshot')) return '📸'
-      return '▶️'
+      if (entry.includes('] OK:')) return 'check_circle'
+      if (entry.includes('] FAILED:')) return 'error'
+      if (entry.includes('] screenshot')) return 'photo_camera'
+      return 'play_arrow'
     }
 
     onMounted(() => loadLogs())
@@ -69,54 +69,57 @@ export default defineComponent({
 
   render() {
     return (
-      <div>
-        <div class="memory-actions">
-          <button class="memory-actions__btn memory-actions__btn--new" onClick={() => this.loadLogs()}>
-            <span class="memory-actions__icon">refresh</span>
+      <div style="max-width: 720px;">
+        {/* Actions */}
+        <div class="subtab-actions-row">
+          <button class="settings-field__button" onClick={() => this.loadLogs()}>
+            <span class="settings-field__button-icon">refresh</span>
             Refresh
           </button>
           {this.logs.length > 0 && (
-            <button class="memory-actions__btn memory-actions__btn--clear" onClick={() => this.clearLogs()}>
-              <span class="memory-actions__icon">delete_sweep</span>
+            <button class="subtab-danger-btn" style="margin-top: 0;" onClick={() => this.clearLogs()}>
+              <span class="subtab-danger-btn__icon">delete_sweep</span>
               Clear All
             </button>
           )}
         </div>
+
         {this.loading ? (
           <div class="settings-loading">Loading action logs…</div>
         ) : this.logs.length === 0 ? (
-          <div class="memory-empty">
-            <span class="memory-empty__icon">terminal</span>
+          <div class="subtab-empty">
+            <span class="subtab-empty__icon">terminal</span>
             <span>No actions yet. Give the agent a task to see its execution history.</span>
           </div>
         ) : (
-          <div class="memory-sessions">
+          <div class="subtab-cards">
             {this.logs.map((log, i) => {
               const isExpanded = this.expandedIndex === i
               const hasErrors = log.entries.some(e => e.includes('] FAILED:'))
               return (
-                <div key={i} class={['memory-session', isExpanded && 'memory-session--expanded']}>
-                  <div class="memory-session__header" onClick={() => this.toggleExpand(i)}>
-                    <div class="memory-session__info">
-                      <span class="memory-session__title">
-                        {hasErrors ? '⚠️' : '✅'} {log.command}
+                <div key={i} class={['subtab-card subtab-card--session', isExpanded && 'subtab-card--expanded']}>
+                  <div class="subtab-card__header" onClick={() => this.toggleExpand(i)}>
+                    <div class="subtab-card__header-info">
+                      <span class={['subtab-card__icon', hasErrors ? 'subtab-card__icon--error' : 'subtab-card__icon--success']}>
+                        {hasErrors ? 'warning' : 'check_circle'}
                       </span>
-                      <span class="memory-session__meta">
-                        {log.entries.length} steps · {this.formatDate(log.timestamp)}
-                      </span>
+                      <div>
+                        <div class="subtab-card__title">{log.command}</div>
+                        <div class="subtab-card__meta">{log.entries.length} steps · {this.formatDate(log.timestamp)}</div>
+                      </div>
                     </div>
-                    <div class="memory-session__actions">
-                      <span class={['memory-session__chevron', isExpanded && 'memory-session__chevron--open']}>
-                        expand_more
-                      </span>
+                    <div class="subtab-card__header-actions">
+                      <span class={['subtab-card__chevron', isExpanded && 'subtab-card__chevron--open']}>expand_more</span>
                     </div>
                   </div>
                   {isExpanded && (
-                    <div class="memory-session__messages">
+                    <div class="subtab-card__messages">
                       {log.entries.map((entry, j) => (
-                        <div key={j} class="memory-msg memory-msg--model" style="font-family: monospace; font-size: 0.85em;">
-                          <span class="memory-msg__role">{this.getStatusIcon(entry)}</span>
-                          <span class="memory-msg__text">{entry}</span>
+                        <div key={j} class="subtab-msg subtab-msg--log">
+                          <span class={['subtab-msg__icon', entry.includes('] FAILED:') && 'subtab-msg__icon--error']}>
+                            {this.getStatusIcon(entry)}
+                          </span>
+                          <span class="subtab-msg__text" style="font-family: monospace; font-size: 0.85em;">{entry}</span>
                         </div>
                       ))}
                     </div>

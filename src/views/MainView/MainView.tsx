@@ -54,10 +54,17 @@ export default defineComponent({
       positionSide.value = cfg.ui.positionSide || 'right'
     })
 
-    // Subscribe to config changes for live position updates
+    // Subscribe to config changes for live position updates + STT toggle
     const configSub = api.settings.onConfigChange.subscribe(undefined, {
       onData(cfg) {
         positionSide.value = cfg.ui.positionSide || 'right'
+        // Toggle STT dynamically on config change
+        if (cfg.stt.enabled && !sttEnabled.value) {
+          sttEnabled.value = true
+          enableSTT()
+        } else if (!cfg.stt.enabled && sttEnabled.value) {
+          sttEnabled.value = false
+        }
       },
     })
 

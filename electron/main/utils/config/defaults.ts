@@ -14,6 +14,8 @@ export const defaultConfig: AppConfig = {
     openDevTools: !app.isPackaged,
     logLevel: 'debug',
     debugLog: false,
+    soundEnabled: true,
+    soundVolume: 0.5,
   },
   llm: {
     provider: 'gemini',

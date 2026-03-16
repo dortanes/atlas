@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { app } from 'electron'
 import { observable } from '@trpc/server/observable'
 import { trpcRouter, publicProcedure } from '@electron/api/context'
-import { getConfig, saveConfig, type AppConfig } from '@electron/utils/config'
+import { getConfig, saveConfig, defaultConfig, type AppConfig } from '@electron/utils/config'
 import { mainEventBus } from '@electron/utils/eventBus'
 import { PromptLoader } from '@electron/services/intelligence/PromptLoader'
 import { openLogsFolder } from '@electron/utils/sessionLogger'
@@ -20,6 +21,8 @@ const uiSchema = z.object({
   openDevTools: z.boolean().optional(),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   debugLog: z.boolean().optional(),
+  soundEnabled: z.boolean().optional(),
+  soundVolume: z.number().min(0).max(1).optional(),
 }).optional()
 
 const llmSchema = z.object({
@@ -147,5 +150,27 @@ export const settingsRouter = trpcRouter({
     const { openLogFile } = await import('@electron/utils/logger')
     await openLogFile()
     return true
+  }),
+
+  /** Reset a config section to factory defaults */
+  resetSection: publicProcedure
+    .input(z.object({ section: z.enum(['ui', 'llm', 'generation', 'tts', 'stt', 'agent']) }))
+    .mutation(({ input }) => {
+      const defaults = defaultConfig[input.section]
+      saveConfig({ [input.section]: defaults } as Partial<AppConfig>)
+      const updated = getConfig()
+      mainEventBus.emit('config:changed', updated)
+      return updated
+    }),
+
+  /** Get app version from package.json */
+  getAppVersion: publicProcedure.query(() => {
+    return {
+      version: app.getVersion(),
+      name: app.getName(),
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+    }
   }),
 })

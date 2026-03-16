@@ -3,13 +3,12 @@ import './SettingsView.css'
 import { useSettings, type AppConfig } from '@/composables/useSettings'
 import GeneralTab from './tabs/GeneralTab'
 import LLMTab from './tabs/LLMTab'
-import TTSTab from './tabs/TTSTab'
-import STTTab from './tabs/STTTab'
-import HotkeyTab from './tabs/HotkeyTab'
+import VoiceTab from './tabs/VoiceTab'
 import AgentTab from './tabs/AgentTab'
 import PersonasTab from './tabs/PersonasTab'
+import AboutTab from './tabs/AboutTab'
 
-type TabId = 'general' | 'llm' | 'tts' | 'stt' | 'hotkey' | 'agent' | 'personas'
+type TabId = 'general' | 'intelligence' | 'voice' | 'agent' | 'personas' | 'about'
 
 interface TabDef {
   id: TabId
@@ -19,19 +18,18 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: 'general', label: 'General', icon: 'tune' },
-  { id: 'llm', label: 'LLM', icon: 'psychology' },
-  { id: 'tts', label: 'TTS', icon: 'record_voice_over' },
-  { id: 'stt', label: 'STT', icon: 'mic' },
+  { id: 'intelligence', label: 'Intelligence', icon: 'psychology' },
+  { id: 'voice', label: 'Voice', icon: 'graphic_eq' },
   { id: 'agent', label: 'Agent', icon: 'smart_toy' },
-  { id: 'hotkey', label: 'Hotkey', icon: 'keyboard' },
   { id: 'personas', label: 'Personas', icon: 'group' },
+  { id: 'about', label: 'About', icon: 'info' },
 ]
 
 /**
- * SettingsView — full-screen overlay settings panel.
+ * SettingsView — full-page settings panel.
  *
- * Tabbed layout with glass styling. Each tab is a separate component.
- * Per-persona entities (Prompts, Facts, Memory) are managed inside PersonasTab.
+ * Full-page layout with sidebar navigation, 6 tabs.
+ * Auto-saves on change (debounced 800ms).
  */
 export default defineComponent({
   name: 'SettingsView',
@@ -52,15 +50,14 @@ export default defineComponent({
       saving,
       saved,
       loadConfig,
-      saveConfig,
     } = useSettings()
 
     onMounted(async () => {
       await loadConfig()
     })
 
-    function onUpdate(key: keyof AppConfig, value: any) {
-      ;(config as any)[key] = value
+    function onUpdate(key: keyof AppConfig, value: unknown) {
+      ;(config as Record<string, unknown>)[key] = value
     }
 
     function onKeydown(e: KeyboardEvent) {
@@ -75,7 +72,6 @@ export default defineComponent({
       loading,
       saving,
       saved,
-      saveConfig,
       onUpdate,
       onKeydown,
     }
@@ -83,76 +79,77 @@ export default defineComponent({
 
   render() {
     return (
-      <div class="settings-overlay" onKeydown={this.onKeydown}>
-        <div class="settings-panel glass">
-          {/* Header */}
-          <div class="settings-header">
-            <h2 class="settings-header__title">Settings</h2>
-            <button class="settings-header__close" onClick={() => this.onClose()}>✕</button>
+      <div class="settings-page" onKeydown={this.onKeydown} tabindex="-1">
+        {/* Sidebar */}
+        <nav class="settings-nav">
+          <button class="settings-nav__back" onClick={() => this.onClose()}>
+            <span class="settings-nav__back-icon">arrow_back</span>
+            <span>Settings</span>
+          </button>
+
+          <div class="settings-nav__tabs">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                class={[
+                  'settings-nav__tab',
+                  this.activeTab === tab.id && 'settings-nav__tab--active',
+                ]}
+                onClick={() => { this.activeTab = tab.id }}
+              >
+                <span class="settings-nav__tab-icon">{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </div>
 
-          <div class="settings-body">
-            {/* Sidebar tabs */}
-            <nav class="settings-sidebar">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  class={[
-                    'settings-sidebar__tab',
-                    this.activeTab === tab.id && 'settings-sidebar__tab--active',
-                  ]}
-                  onClick={() => { this.activeTab = tab.id }}
-                >
-                  <span class="settings-sidebar__icon">{tab.icon}</span>
-                  <span class="settings-sidebar__label">{tab.label}</span>
-                </button>
-              ))}
-            </nav>
+          {/* Footer: auto-save status */}
+          <div class="settings-nav__footer">
+            {this.saving && (
+              <span class="settings-nav__status settings-nav__status--saving">
+                <span class="settings-nav__status-icon">sync</span>
+                Saving…
+              </span>
+            )}
+            {this.saved && (
+              <span class="settings-nav__status settings-nav__status--saved">
+                <span class="settings-nav__status-icon">check_circle</span>
+                Saved
+              </span>
+            )}
+          </div>
+        </nav>
 
-            {/* Tab content */}
-            <div class="settings-content">
-              {this.loading ? (
-                <div class="settings-loading">Loading…</div>
-              ) : (
-                <>
-                  {this.activeTab === 'general' && (
-                    <GeneralTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'llm' && (
-                    <LLMTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'tts' && (
-                    <TTSTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'stt' && (
-                    <STTTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'hotkey' && (
-                    <HotkeyTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'agent' && (
-                    <AgentTab config={this.config} onUpdate={this.onUpdate} />
-                  )}
-                  {this.activeTab === 'personas' && (
-                    <PersonasTab />
-                  )}
-                </>
-              )}
+        {/* Content */}
+        <main class="settings-main">
+          {this.loading ? (
+            <div class="settings-loading">
+              <span class="settings-loading__icon">sync</span>
+              Loading settings…
             </div>
-          </div>
-
-          {/* Footer — save button */}
-          <div class="settings-footer">
-            {this.saved && <span class="settings-footer__saved">✓ Saved</span>}
-            <button
-              class="settings-footer__save"
-              onClick={() => this.saveConfig()}
-              disabled={this.saving}
-            >
-              {this.saving ? 'Saving…' : 'Save Settings'}
-            </button>
-          </div>
-        </div>
+          ) : (
+            <>
+              {this.activeTab === 'general' && (
+                <GeneralTab config={this.config} onUpdate={this.onUpdate} onClose={() => this.onClose()} />
+              )}
+              {this.activeTab === 'intelligence' && (
+                <LLMTab config={this.config} onUpdate={this.onUpdate} />
+              )}
+              {this.activeTab === 'voice' && (
+                <VoiceTab config={this.config} onUpdate={this.onUpdate} />
+              )}
+              {this.activeTab === 'agent' && (
+                <AgentTab config={this.config} onUpdate={this.onUpdate} />
+              )}
+              {this.activeTab === 'personas' && (
+                <PersonasTab />
+              )}
+              {this.activeTab === 'about' && (
+                <AboutTab onClose={() => this.onClose()} />
+              )}
+            </>
+          )}
+        </main>
       </div>
     )
   },

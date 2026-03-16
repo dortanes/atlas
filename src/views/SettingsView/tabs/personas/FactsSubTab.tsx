@@ -3,6 +3,7 @@ import { useFacts, type Fact } from '@/composables/useFacts'
 
 /**
  * FactsSubTab — manages per-persona facts.
+ * Card-based layout with Material icons, inline editing, styled add/clear.
  */
 export default defineComponent({
   name: 'FactsSubTab',
@@ -62,51 +63,55 @@ export default defineComponent({
 
   render() {
     return (
-      <div>
-        <p class="facts-description">
-          Knowledge that Atlas remembers about you. Facts are extracted automatically from conversations and can be edited manually.
+      <div style="max-width: 720px;">
+        <p class="subtab-description">
+          Knowledge that Atlas remembers about you. Facts are extracted from conversations and can be added manually.
         </p>
-        <div class="facts-add">
-          <input class="settings-field__input facts-add__input" value={this.newFactText}
+
+        {/* Add fact input */}
+        <div class="subtab-add-row">
+          <input class="settings-field__input" style="flex: 1;" value={this.newFactText}
             onInput={(e: Event) => { this.newFactText = (e.target as HTMLInputElement).value }}
             onKeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') this.onAdd() }}
             placeholder="Add a fact manually…" maxlength={500} />
-          <button class="facts-add__btn" onClick={() => this.onAdd()} disabled={!this.newFactText.trim()}>
-            <span class="facts-add__icon">add</span>
+          <button class="settings-field__button" onClick={() => this.onAdd()} disabled={!this.newFactText.trim()}>
+            <span class="settings-field__button-icon">add</span>
+            Add
           </button>
         </div>
+
         {this.loading ? (
           <div class="settings-loading">Loading facts…</div>
         ) : this.facts.length === 0 ? (
-          <div class="facts-empty">
-            <span class="facts-empty__icon">lightbulb</span>
+          <div class="subtab-empty">
+            <span class="subtab-empty__icon">lightbulb</span>
             <span>No facts yet. Start chatting and Atlas will learn about you!</span>
           </div>
         ) : (
           <>
-            <div class="facts-list">
+            <div class="subtab-cards">
               {this.facts.map((f: Fact) => {
                 const isEditing = this.editingId === f.id
                 return (
-                  <div key={f.id} class="facts-item">
+                  <div key={f.id} class={['subtab-card', isEditing && 'subtab-card--editing']}>
                     {isEditing ? (
-                      <div class="facts-item__edit">
-                        <input class="settings-field__input facts-item__edit-input" value={this.editingText}
+                      <div class="subtab-card__edit-row">
+                        <input class="settings-field__input" style="flex: 1;" value={this.editingText}
                           onInput={(e: Event) => { this.editingText = (e.target as HTMLInputElement).value }}
                           onKeydown={(e: KeyboardEvent) => {
                             if (e.key === 'Enter') this.saveEdit()
                             if (e.key === 'Escape') this.cancelEdit()
                           }} maxlength={500} />
-                        <button class="facts-item__btn facts-item__btn--save" onClick={() => this.saveEdit()}>check</button>
-                        <button class="facts-item__btn facts-item__btn--cancel" onClick={() => this.cancelEdit()}>close</button>
+                        <button class="subtab-card__action subtab-card__action--save" onClick={() => this.saveEdit()}>check</button>
+                        <button class="subtab-card__action subtab-card__action--cancel" onClick={() => this.cancelEdit()}>close</button>
                       </div>
                     ) : (
                       <>
-                        <span class="facts-item__source">{f.source === 'extracted' ? '🤖' : '✏️'}</span>
-                        <span class="facts-item__text">{f.text}</span>
-                        <div class="facts-item__actions">
-                          <button class="facts-item__btn facts-item__btn--edit" onClick={() => this.startEdit(f)}>edit</button>
-                          <button class="facts-item__btn facts-item__btn--delete" onClick={() => this.onDelete(f.id)}>delete</button>
+                        <span class="subtab-card__icon">{f.source === 'extracted' ? 'smart_toy' : 'edit'}</span>
+                        <span class="subtab-card__text">{f.text}</span>
+                        <div class="subtab-card__actions">
+                          <button class="subtab-card__action" onClick={() => this.startEdit(f)} title="Edit">edit</button>
+                          <button class="subtab-card__action subtab-card__action--delete" onClick={() => this.onDelete(f.id)} title="Delete">delete</button>
                         </div>
                       </>
                     )}
@@ -114,8 +119,8 @@ export default defineComponent({
                 )
               })}
             </div>
-            <button class="facts-clear" onClick={() => this.onClearAll()}>
-              <span class="facts-clear__icon">delete_sweep</span>
+            <button class="subtab-danger-btn" onClick={() => this.onClearAll()}>
+              <span class="subtab-danger-btn__icon">delete_sweep</span>
               Clear All Facts
             </button>
           </>

@@ -3,6 +3,7 @@ import { useMemory, type SessionMeta, type ConversationSession } from '@/composa
 
 /**
  * MemorySubTab — browse and manage conversation sessions for a persona.
+ * Material icons for roles, styled session cards.
  */
 export default defineComponent({
   name: 'MemorySubTab',
@@ -60,58 +61,58 @@ export default defineComponent({
 
   render() {
     return (
-      <div>
-        <div class="memory-actions">
-          <button class="memory-actions__btn memory-actions__btn--new" onClick={() => this.onNewSession()}>
-            <span class="memory-actions__icon">add</span>
+      <div style="max-width: 720px;">
+        {/* Actions */}
+        <div class="subtab-actions-row">
+          <button class="settings-field__button" onClick={() => this.onNewSession()}>
+            <span class="settings-field__button-icon">add</span>
             New Conversation
           </button>
           {this.sessions.length > 0 && (
-            <button class="memory-actions__btn memory-actions__btn--clear" onClick={() => this.onClearAll()}>
-              <span class="memory-actions__icon">delete_sweep</span>
+            <button class="subtab-danger-btn" style="margin-top: 0;" onClick={() => this.onClearAll()}>
+              <span class="subtab-danger-btn__icon">delete_sweep</span>
               Clear All
             </button>
           )}
         </div>
+
         {this.loading ? (
           <div class="settings-loading">Loading sessions…</div>
         ) : this.sessions.length === 0 ? (
-          <div class="memory-empty">
-            <span class="memory-empty__icon">chat_bubble_outline</span>
+          <div class="subtab-empty">
+            <span class="subtab-empty__icon">chat_bubble_outline</span>
             <span>No conversations yet. Start chatting with Atlas!</span>
           </div>
         ) : (
-          <div class="memory-sessions">
+          <div class="subtab-cards">
             {this.sessions.map((s: SessionMeta) => {
               const isExpanded = this.expandedSession?.id === s.id
               return (
-                <div key={s.id} class={['memory-session', isExpanded && 'memory-session--expanded']}>
-                  <div class="memory-session__header" onClick={() => this.toggleSession(s)}>
-                    <div class="memory-session__info">
-                      <span class="memory-session__title">{s.title}</span>
-                      <span class="memory-session__meta">
-                        {s.messageCount} messages · {this.formatDate(s.updatedAt)}
-                      </span>
+                <div key={s.id} class={['subtab-card subtab-card--session', isExpanded && 'subtab-card--expanded']}>
+                  <div class="subtab-card__header" onClick={() => this.toggleSession(s)}>
+                    <div class="subtab-card__header-info">
+                      <span class="subtab-card__icon">forum</span>
+                      <div>
+                        <div class="subtab-card__title">{s.title}</div>
+                        <div class="subtab-card__meta">{s.messageCount} messages · {this.formatDate(s.updatedAt)}</div>
+                      </div>
                     </div>
-                    <div class="memory-session__actions">
-                      <button class="memory-session__btn memory-session__btn--delete"
-                        onClick={(e: Event) => { e.stopPropagation(); this.onDelete(s.id) }}
-                        title="Delete session">delete</button>
-                      <span class={['memory-session__chevron', isExpanded && 'memory-session__chevron--open']}>
-                        expand_more
-                      </span>
+                    <div class="subtab-card__header-actions">
+                      <button class="subtab-card__action subtab-card__action--delete"
+                        onClick={(e: Event) => { e.stopPropagation(); this.onDelete(s.id) }} title="Delete">delete</button>
+                      <span class={['subtab-card__chevron', isExpanded && 'subtab-card__chevron--open']}>expand_more</span>
                     </div>
                   </div>
                   {isExpanded && this.expandedSession && (
-                    <div class="memory-session__messages">
+                    <div class="subtab-card__messages">
                       {this.expandedSession.messages.map((msg, i) => (
-                        <div key={i} class={['memory-msg', `memory-msg--${msg.role}`]}>
-                          <span class="memory-msg__role">{msg.role === 'user' ? '👤' : '🤖'}</span>
-                          <span class="memory-msg__text">{msg.text}</span>
+                        <div key={i} class={['subtab-msg', `subtab-msg--${msg.role}`]}>
+                          <span class="subtab-msg__icon">{msg.role === 'user' ? 'person' : 'smart_toy'}</span>
+                          <span class="subtab-msg__text">{msg.text}</span>
                         </div>
                       ))}
                       {this.expandedSession.messages.length === 0 && (
-                        <div class="memory-msg memory-msg--empty">No messages in this session</div>
+                        <div class="subtab-msg subtab-msg--empty">No messages in this session</div>
                       )}
                     </div>
                   )}

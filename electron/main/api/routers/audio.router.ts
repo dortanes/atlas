@@ -4,6 +4,7 @@ import { trpcRouter, publicProcedure } from '@electron/api/context'
 import { mainEventBus } from '@electron/utils/eventBus'
 import { createLogger } from '@electron/utils/logger'
 import type { STTService } from '@electron/services/stt/STTService'
+import { getModelStatus as getModelStatusForLanguage } from '@electron/services/stt/ModelManager'
 
 const log = createLogger('audio.router')
 
@@ -48,11 +49,17 @@ export const audioRouter = trpcRouter({
     })
   }),
 
-  /** Get STT model status (downloaded, path) */
-  getSTTModelStatus: publicProcedure.query(() => {
-    if (!sttService) return { downloaded: false, path: '' }
-    return sttService.getModelStatus()
-  }),
+  /** Get STT model status (downloaded, path) for a given or configured language */
+  getSTTModelStatus: publicProcedure
+    .input(z.object({ language: z.string().optional() }).optional())
+    .query(({ input }) => {
+      if (!sttService) return { downloaded: false, path: '' }
+      if (input?.language) {
+        // Check status for a specific language (used when user changes language in UI)
+        return getModelStatusForLanguage(input.language)
+      }
+      return sttService.getModelStatus()
+    }),
 
   /** Get model path for renderer to load */
   getSTTModelPath: publicProcedure.query(() => {

@@ -23,6 +23,10 @@ export interface UIConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error'
   /** Write per-request session logs to {userData}/Logs/ */
   debugLog: boolean
+  /** Whether UI sound effects are enabled */
+  soundEnabled: boolean
+  /** Sound effects volume (0.0 – 1.0) */
+  soundVolume: number
 }
 
 export interface LLMConfig {
