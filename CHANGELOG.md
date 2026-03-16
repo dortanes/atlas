@@ -1,3 +1,58 @@
+# Changelog — v0.2.3 (2026-03-16)
+
+## [Added]
+
+- **Local Speech-to-Text** — offline STT via `vosk-browser` with AudioWorklet-based mic capture (`useSTT` composable, `STTService`, `ModelManager`)
+- **Wake word activation** — persona-based wake word detection triggers listening automatically
+- **ListeningIsland UI** — floating island component showing live transcript during voice input
+- **STT model management** — backend download, progress tracking, and per-language model status via `getSTTModelStatus` (now accepts optional `language` parameter)
+- **Full-page Settings UI** — new full-page layout with sidebar navigation replaces glass overlay panel
+- **VoiceTab** — unified tab combining TTS and STT settings (replaces separate `TTSTab` and `STTTab`)
+- **AboutTab** — displays app version, Electron/Chrome/Node runtime versions
+- **CustomSelect component** — styled dropdown replacing native `<select>` across all settings tabs
+- **EmojiPicker component** — emoji avatar selection for personas (`vue3-emoji-picker` dependency)
+- **Per-section reset to defaults** — `settings.resetSection` tRPC endpoint resets individual config sections (`ui`, `llm`, `generation`, `tts`, `stt`, `agent`)
+- **`settings.getAppVersion`** — tRPC endpoint returning app name, version, and runtime versions
+- **`system.openExternal`** — tRPC endpoint to open URLs in the default browser
+- **`forceHideWindow()`** — unconditional window hide in `WindowManager` (used when closing settings without agent)
+- **Sound settings** — `soundEnabled` and `soundVolume` fields in `UIConfig` schema and defaults
+- **`.gitattributes`** — enforce consistent line endings across the repository
+
+## [Changed]
+
+- **Settings tab structure** — 7 tabs → 6 tabs (`General`, `Intelligence`, `Voice`, `Agent`, `Personas`, `About`); `LLM` renamed to `Intelligence`
+- **GeneralTab** — expanded with sound settings, hotkey binding (moved from `HotkeyTab`), and app exit action
+- **AgentTab** — redesigned with card-based sections, slider controls, CustomSelect dropdowns
+- **LLMTab (Intelligence)** — includes generation settings, model parameters, and section reset button
+- **PersonasTab** — redesigned with emoji avatars, card-based persona list, horizontal sub-tab pills
+- **PromptsTab** — restyled with horizontal prompt pills, full-width editor, and Material Icons
+- **Persona sub-tabs** (`ActionsSubTab`, `FactsSubTab`, `MemorySubTab`) — unified `subtab-card` class system with Material Icons
+- **`useSettings` composable** — auto-save via 800ms debounced watcher replaces manual save button
+- **`SettingsView.css`** — fully rewritten (~2300+ lines) for the new full-page layout
+- **`WindowManager.showWindowForSettings()`** — now positions window on active monitor without emitting agent-visibility events
+- **`system.hideWindow`** — calls `forceHideWindow()` instead of `toggleWindow()`
+- **`toggleWindow()`** — removed settings-open guard (no longer needed with full-page settings)
+- **`App.tsx` / `MainView.tsx`** — updated for settings routing, window lifecycle, and STT integration
+- **Multi-monitor screenshots** — `ScreenCapture` and `CoordinateMapper` now target the active display
+- **TTS interruption** — `useTTS` properly stops playback when agent is interrupted
+- **Agent warning** — dismissible max-steps warning in `InputBar`
+- **Command deduplication** — prevents duplicate command submissions in `AgentService`
+- **Hidden UI on startup** — main window starts invisible until explicitly shown
+- **CSP headers** — updated Content-Security-Policy in `index.html` for audio worklet support
+
+## [Removed]
+
+- **`TTSTab.tsx`** — merged into `VoiceTab`
+- **`STTTab.tsx`** — merged into `VoiceTab`
+- **`HotkeyTab.tsx`** — hotkey settings moved into `GeneralTab`
+- **`setSettingsOpen()` / `settingsOpen`** state tracking in `WindowManager`
+- **`notifySettingsOpen`** tRPC endpoint in `system.router`
+- **Manual "Save Settings" button** — replaced by auto-save
+- Unused `suspendMic` / `resumeMic` functions
+- Unused `tts:format` event from `eventBus.ts`
+
+---
+
 # Changelog — v0.2.2 (2026-03-15)
 
 ## [Added]
