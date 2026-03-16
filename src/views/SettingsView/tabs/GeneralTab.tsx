@@ -48,7 +48,7 @@ export default defineComponent({
         const key = e.key
         if (['Control', 'Alt', 'Shift', 'Meta'].includes(key)) return
         parts.push(key === ' ' ? 'Space' : key.length === 1 ? key.toUpperCase() : key)
-        this.config.hotkey = parts.join('+')
+        this.$emit('update', 'hotkey', parts.join('+'))
         this.stopRecording()
       }
       this.recordingHandler = handler
@@ -66,7 +66,7 @@ export default defineComponent({
       this.resetting = true
       try {
         const updated = await api.settings.resetSection.mutate({ section: 'ui' })
-        Object.assign(this.config.ui, updated.ui)
+        this.$emit('update', 'ui', updated.ui)
       } finally {
         this.resetting = false
       }

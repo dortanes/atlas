@@ -210,9 +210,9 @@ export default defineComponent({
           this.resetting = true
           try {
             const u1 = await api.settings.resetSection.mutate({ section: 'tts' })
-            Object.assign(this.config.tts, u1.tts)
+            this.$emit('update', 'tts', u1.tts)
             const u2 = await api.settings.resetSection.mutate({ section: 'stt' })
-            Object.assign(this.config.stt, u2.stt)
+            this.$emit('update', 'stt', u2.stt)
           } finally { this.resetting = false }
         }} disabled={this.resetting}>
           <span class="settings-reset-btn__icon">restart_alt</span>
